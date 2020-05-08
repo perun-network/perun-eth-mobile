@@ -37,7 +37,7 @@ func ContextWithCancel() *Context {
 	return &Context{ctx: ctx, cancel: cancel}
 }
 
-// Cancel cancelles the context, only works on a Context created with Context.WithCancel().
+// Cancel cancels the context. Only works on a Context created with Context.WithCancel().
 func (c *Context) Cancel() {
 	if c.cancel != nil {
 		c.cancel()
