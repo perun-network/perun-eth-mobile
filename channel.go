@@ -74,8 +74,11 @@ func (c *PaymentChannel) Send(ctx *Context, amount *BigInt) error {
 	state := c.ch.State().Clone()
 	my := c.ch.Idx()
 	other := 1 - my
-	state.Allocation.Balances[0][my].Sub(state.Allocation.Balances[0][my], amount.i)
-	state.Allocation.Balances[0][other].Add(state.Allocation.Balances[0][other], amount.i)
+	bals := state.Allocation.Balances[0]
+	bals[my].Sub(bals[my], amount.i)
+	bals[other].Add(bals[other], amount.i)
+	state.Version++
+
 	return c.ch.Update(ctx.ctx, client.ChannelUpdate{
 		State:    state,
 		ActorIdx: c.ch.Idx(),
@@ -89,6 +92,7 @@ func (c *PaymentChannel) GetIdx() int {
 func (c *PaymentChannel) Finalize(ctx *Context) error {
 	state := c.ch.State().Clone()
 	state.IsFinal = true
+	state.Version++
 	return c.ch.Update(ctx.ctx, client.ChannelUpdate{
 		State:    state,
 		ActorIdx: c.ch.Idx(),

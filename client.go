@@ -39,8 +39,6 @@ type Client struct {
 }
 
 func NewClient(cfg *Config) (*Client, error) {
-	//acc := unlockAccount(cfg)
-	//var w wallet.Wallet
 	w, acc, err := importAccount(cfg.KeyStorePath, "0x6aeeb7f09e757baa9d3935a042c3d0d46a2eda19e9b676283dce4eaf32e29dc9")
 	if err != nil {
 		return nil, errors.WithMessage(err, "importing account")
@@ -62,10 +60,6 @@ func NewClient(cfg *Config) (*Client, error) {
 	client := client.New(acc, dialer, funder, adjudicator, w)
 	go client.Listen(listener)
 	return &Client{cfg: cfg, client: client, w: w, onChain: acc, dialer: dialer}, nil
-}
-
-func unlockAccount(cfg *Config) ethwallet.Account {
-	return ethwallet.Account{}
 }
 
 func importAccount(walletPath, secret string) (*ethwallet.Wallet, *ethwallet.Account, error) {
@@ -98,12 +92,9 @@ func (c *Client) AddPeer(perunID *Address, host string, port int) {
 }
 
 func (c *Client) ProposeChannel(ctx *Context, perunID *Address, challengeDuration int64, initialBals *BigInts) (*PaymentChannel, error) {
-	if initialBals.Length() != 2 {
-		return nil, errors.New("initBals needs exactly two entries")
-	}
 	alloc := &channel.Allocation{
 		Assets:   []channel.Asset{(*ethwallet.Address)(&assetAddr)},
-		Balances: [][]channel.Bal{{initialBals.values[0], initialBals.values[1]}},
+		Balances: [][]channel.Bal{initialBals.values},
 	}
 	prop := &client.ChannelProposal{
 		ChallengeDuration: uint64(challengeDuration),
@@ -118,12 +109,11 @@ func (c *Client) ProposeChannel(ctx *Context, perunID *Address, challengeDuratio
 	return &PaymentChannel{_ch}, err
 }
 
+var maxUint256 *big.Int
+
 // nonce generates a cryptographically secure random value in the range [0, 2^256 -1]
 func nonce() *big.Int {
-	max := new(big.Int)
-	max.Lsh(big.NewInt(1), 256).Sub(max, big.NewInt(1))
-
-	val, err := srand.Int(srand.Reader, max)
+	val, err := srand.Int(srand.Reader, maxUint256)
 	if err != nil {
 		log.Panic("Could not create nonce")
 	}
