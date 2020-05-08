@@ -6,6 +6,8 @@
 package prnm
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 	"perun.network/go-perun/apps/payment"
@@ -26,7 +28,6 @@ type Config struct {
 	ETHNodeURL             string   // URL of the ETH node. Example: ws://127.0.0.1:8545
 	IP                     string   // Ip to listen on.
 	Port                   uint16   // Port to listen on.
-	// TODO loglevel
 }
 
 // assetAddr Address of the Asset to be used.
@@ -55,7 +56,11 @@ func NewConfig(alias, keyStorePath, password string, address *Address, databaseP
 var logger *logrus.Logger
 
 func init() {
+	maxUint256 = new(big.Int)
+	maxUint256.Lsh(big.NewInt(1), 256).Sub(maxUint256, big.NewInt(1))
+
 	payment.SetAppDef((*wallet.Address)(&appDef))
+
 	logger = logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
 	log.Set(plogrus.FromLogrus(logger))
