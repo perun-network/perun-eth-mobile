@@ -58,10 +58,6 @@ type PaymentChannel struct {
 	ch *client.Channel
 }
 
-func (c *PaymentChannel) HandleUpdates(handler client.UpdateHandler) {
-	c.ch.ListenUpdates(handler)
-}
-
 func (c *PaymentChannel) Watch() error {
 	return c.ch.Watch()
 }
