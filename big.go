@@ -64,19 +64,22 @@ type BigInts struct {
 	values []*big.Int
 }
 
-// NewBigInts creates a new BitInts with the given length
+// NewBigInts creates a new BitInts with the given length.
 func NewBigInts(length int) *BigInts {
 	return &BigInts{values: make([]*big.Int, length)}
 }
 
+// NewBalances creates a new BigInts of length two with the given values.
 func NewBalances(first, second *BigInt) *BigInts {
 	return &BigInts{values: []*big.Int{first.i, second.i}}
 }
 
+// Length returns the length of the BigInts slice.
 func (bs *BigInts) Length() int {
 	return len(bs.values)
 }
 
+// Get returns the element at the given index.
 func (bs *BigInts) Get(index int) (*BigInt, error) {
 	if index < 0 || index >= len(bs.values) {
 		return nil, errors.New("get: index out of range")
@@ -84,6 +87,7 @@ func (bs *BigInts) Get(index int) (*BigInt, error) {
 	return &BigInt{bs.values[index]}, nil
 }
 
+// Set sets the element at the given index.
 func (bs *BigInts) Set(index int, value *BigInt) error {
 	if index < 0 || index >= len(bs.values) {
 		return errors.New("set: index out of range")

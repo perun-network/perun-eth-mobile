@@ -45,14 +45,17 @@ type Addresses struct {
 	values []wallet.Address
 }
 
+// NewAddresses creates a new Addresses with the given length.
 func NewAddresses(length int) *Addresses {
 	return &Addresses{values: make([]wallet.Address, length)}
 }
 
+// Length returns the length of the Addresses slice.
 func (as *Addresses) Length() int {
 	return len(as.values)
 }
 
+// Get returns the element at the given index.
 func (as *Addresses) Get(index int) (*Address, error) {
 	if index < 0 || index >= len(as.values) {
 		return nil, errors.New("get: index out of range")
@@ -60,6 +63,7 @@ func (as *Addresses) Get(index int) (*Address, error) {
 	return &Address{as.values[index]}, nil
 }
 
+// Set sets the element at the given index.
 func (as *Addresses) Set(index int, value *Address) error {
 	if index < 0 || index >= len(as.values) {
 		return errors.New("set: index out of range")
