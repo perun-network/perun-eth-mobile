@@ -6,9 +6,52 @@
 package prnm
 
 import (
+	"crypto/rand"
+	"math/big"
+
+	"perun.network/go-perun/apps/payment"
 	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
+	"perun.network/go-perun/channel"
 	"perun.network/go-perun/client"
+	"perun.network/go-perun/log"
+	"perun.network/go-perun/wallet"
 )
+
+// ProposeChannel proposes a new channel to the given peer (perunID) with
+// challengeDuration seconds as the challenge duration in case of disputes and
+// initialBals as the initial channel balances. Returns the newly created
+// channel controller if the channel was successfully created and funded.
+//
+// After the channel got successfully created, the user is required to start the
+// update handler with PaymentChannel.HandleUpdates(UpdateHandler) and to start
+// the channel watcher with PaymentChannel.Watch() on the returned channel
+// controller.
+//
+// It is important that the passed context does not cancel before twice the
+// ChallengeDuration has passed (at least for real blockchain backends with wall
+// time), or the channel cannot be settled if a peer times out funding.
+func (c *Client) ProposeChannel(
+	ctx *Context,
+	perunID *Address,
+	challengeDuration int64,
+	initialBals *BigInts,
+) (*PaymentChannel, error) {
+	alloc := &channel.Allocation{
+		Assets:   []channel.Asset{(*ethwallet.Address)(&assetAddr)},
+		Balances: [][]channel.Bal{initialBals.values},
+	}
+	prop := &client.ChannelProposal{
+		ChallengeDuration: uint64(challengeDuration),
+		Nonce:             nonce(),
+		ParticipantAddr:   c.w.NewAccount().Address(),
+		AppDef:            payment.AppDef(),
+		InitData:          &payment.NoData{},
+		InitBals:          alloc,
+		PeerAddrs:         []wallet.Address{c.onChain.Address(), (*ethwallet.Address)(&perunID.addr)},
+	}
+	_ch, err := c.client.ProposeChannel(ctx.ctx, prop)
+	return &PaymentChannel{_ch}, err
+}
 
 // HandleChannelProposals is the incoming channel proposal handler routine. It
 // must only be started at most once by the user. Incoming channel proposals are
@@ -94,4 +137,16 @@ func (r *ProposalResponder) Accept(ctx *Context) (*PaymentChannel, error) {
 // proposal was already accepted or rejected.
 func (r *ProposalResponder) Reject(ctx *Context, reason string) error {
 	return r.r.Reject(ctx.ctx, reason)
+}
+
+// Used as upper (exclusive) limit when generating a random uint256. Equals 2^256.
+var limitUint256 = new(big.Int).Lsh(big.NewInt(1), 256)
+
+// nonce generates a cryptographically secure random value in the range [0, 2^256)
+func nonce() *big.Int {
+	val, err := rand.Int(rand.Reader, limitUint256)
+	if err != nil {
+		log.Panic("Could not create nonce")
+	}
+	return val
 }
