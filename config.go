@@ -1,18 +1,16 @@
 // Copyright (c) 2020 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
+// perun-eth-mobile. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
 
 package prnm
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
-	"perun.network/go-perun/apps/payment"
-	"perun.network/go-perun/backend/ethereum/wallet"
 
+	"perun.network/go-perun/apps/payment"
+	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
 	"perun.network/go-perun/log"
 	plogrus "perun.network/go-perun/log/logrus"
 )
@@ -56,10 +54,7 @@ func NewConfig(alias, keyStorePath, password string, address *Address, databaseP
 var logger *logrus.Logger
 
 func init() {
-	maxUint256 = new(big.Int)
-	maxUint256.Lsh(big.NewInt(1), 256).Sub(maxUint256, big.NewInt(1))
-
-	payment.SetAppDef((*wallet.Address)(&appDef))
+	payment.SetAppDef((*ethwallet.Address)(&appDef))
 
 	logger = logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
