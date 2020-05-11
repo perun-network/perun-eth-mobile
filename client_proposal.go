@@ -30,6 +30,11 @@ import (
 // It is important that the passed context does not cancel before twice the
 // ChallengeDuration has passed (at least for real blockchain backends with wall
 // time), or the channel cannot be settled if a peer times out funding.
+//
+// The remote peer must have been added to the Client via AddPeer prior
+// to the call to ProposeChannel. Should the connected peer have a different
+// `perunID` than the one given in AddPeer, an error in the form of
+// "Dialed impersonator" will be thrown.
 func (c *Client) ProposeChannel(
 	ctx *Context,
 	perunID *Address,
