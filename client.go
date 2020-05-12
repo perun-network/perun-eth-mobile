@@ -22,6 +22,10 @@ import (
 	"perun.network/go-perun/wallet"
 )
 
+// Client is a state channel client. It is the central controller to interact
+// with a state channel network. It can be used to propose channels to other
+// channel network peers.
+// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client
 type Client struct {
 	cfg *Config
 
@@ -33,6 +37,12 @@ type Client struct {
 	dialer *net.Dialer
 }
 
+// NewClient sets up a new Client with configuration `cfg`.
+// The Client:
+//  - imports the keystore and unlocks the account
+//  - listens on IP:port
+//  - connects to the eth node
+//  - sets up the connection to the contracts (asset holder/adjudicator)
 func NewClient(cfg *Config) (*Client, error) {
 	w, acc, err := importAccount(cfg.KeyStorePath, "0x6aeeb7f09e757baa9d3935a042c3d0d46a2eda19e9b676283dce4eaf32e29dc9")
 	if err != nil {
@@ -82,6 +92,9 @@ func importAccount(walletPath, secret string) (*ethwallet.Wallet, *ethwallet.Acc
 	return w, acc.(*ethwallet.Account), err
 }
 
+// AddPeer adds a new peer to the client. Must be called before proposing
+// a new channel with said peer. Wraps go-perun/peer/net/Dialer.Register.
+// ref https://pkg.go.dev/perun.network/go-perun/peer/net?tab=doc#Dialer.Register
 func (c *Client) AddPeer(perunID *Address, host string, port int) {
 	c.dialer.Register((*ethwallet.Address)(&perunID.addr), fmt.Sprintf("%s:%d", host, port))
 }
