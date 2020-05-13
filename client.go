@@ -9,9 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 
@@ -43,11 +40,7 @@ type Client struct {
 //  - listens on IP:port
 //  - connects to the eth node
 //  - sets up the connection to the contracts (asset holder/adjudicator)
-func NewClient(cfg *Config) (*Client, error) {
-	w, acc, err := importAccount(cfg.KeyStorePath, "0x6aeeb7f09e757baa9d3935a042c3d0d46a2eda19e9b676283dce4eaf32e29dc9")
-	if err != nil {
-		return nil, errors.WithMessage(err, "importing account")
-	}
+func NewClient(cfg *Config, w *Wallet) (*Client, error) {
 	endpoint := fmt.Sprintf("%s:%d", cfg.IP, cfg.Port)
 	listener, err := net.NewTCPListener(endpoint)
 	if err != nil {
@@ -58,38 +51,17 @@ func NewClient(cfg *Config) (*Client, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "connecting to ethereum node")
 	}
-	cb := ethchannel.NewContractBackend(node, w.Ks, &acc.Account)
+	acc, err := w.findAccount(*cfg.Address)
+	if err != nil {
+		return nil, errors.WithMessage(err, "finding account")
+	}
+	cb := ethchannel.NewContractBackend(node, w.w.Ks, &acc.Account)
 	adjudicator := ethchannel.NewAdjudicator(cb, adjudicatorAdr, acc.Account.Address)
 	funder := ethchannel.NewETHFunder(cb, assetAddr)
 
-	client := client.New(acc, dialer, funder, adjudicator, w)
+	client := client.New(acc, dialer, funder, adjudicator, w.w)
 	go client.Listen(listener)
-	return &Client{cfg: cfg, client: client, w: w, onChain: acc, dialer: dialer}, nil
-}
-
-func importAccount(walletPath, secret string) (*ethwallet.Wallet, *ethwallet.Account, error) {
-	ks := keystore.NewKeyStore(walletPath, 2, 1)
-	sk, err := crypto.HexToECDSA(secret[2:])
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "decoding secret key")
-	}
-	var ethAcc accounts.Account
-	addr := crypto.PubkeyToAddress(sk.PublicKey)
-	if ethAcc, err = ks.Find(accounts.Account{Address: addr}); err != nil {
-		ethAcc, err = ks.ImportECDSA(sk, "")
-		if err != nil && errors.Cause(err).Error() != "account already exists" {
-			return nil, nil, errors.WithMessage(err, "importing secret key")
-		}
-	}
-
-	w, err := ethwallet.NewWallet(ks, "")
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "creating wallet")
-	}
-
-	wAcc := ethwallet.NewAccountFromEth(w, &ethAcc)
-	acc, err := w.Unlock(wAcc.Address())
-	return w, acc.(*ethwallet.Account), err
+	return &Client{cfg: cfg, client: client, w: w.w, onChain: acc, dialer: dialer}, nil
 }
 
 // AddPeer adds a new peer to the client. Must be called before proposing
