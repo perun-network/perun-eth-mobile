@@ -42,7 +42,7 @@ func (c *Client) ProposeChannel(
 	initialBals *BigInts,
 ) (*PaymentChannel, error) {
 	alloc := &channel.Allocation{
-		Assets:   []channel.Asset{(*ethwallet.Address)(&assetAddr)},
+		Assets:   []channel.Asset{(*ethwallet.Address)(&c.cfg.AssetHolder.addr)},
 		Balances: [][]channel.Bal{initialBals.values},
 	}
 	prop := &client.ChannelProposal{

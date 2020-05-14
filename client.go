@@ -6,15 +6,18 @@
 package prnm
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 
 	ethchannel "perun.network/go-perun/backend/ethereum/channel"
 	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
 	"perun.network/go-perun/client"
+	"perun.network/go-perun/log"
 	"perun.network/go-perun/peer/net"
 	"perun.network/go-perun/wallet"
 )
@@ -39,8 +42,13 @@ type Client struct {
 //  - imports the keystore and unlocks the account
 //  - listens on IP:port
 //  - connects to the eth node
-//  - sets up the connection to the contracts (asset holder/adjudicator)
-func NewClient(cfg *Config, w *Wallet) (*Client, error) {
+//  - in case either the Adjudicator and AssetHolder of the `cfg` are nil, it
+//    deploys needed contract. There is currently no check that the
+//    correct bytecode is deployed to the given addresses if they are
+//    not nil.
+//  - sets the `cfg`s Adjudicator and AssetHolder to the deployed contracts
+//    addresses in case they were deployed.
+func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	endpoint := fmt.Sprintf("%s:%d", cfg.IP, cfg.Port)
 	listener, err := net.NewTCPListener(endpoint)
 	if err != nil {
@@ -56,12 +64,16 @@ func NewClient(cfg *Config, w *Wallet) (*Client, error) {
 		return nil, errors.WithMessage(err, "finding account")
 	}
 	cb := ethchannel.NewContractBackend(node, w.w.Ks, &acc.Account)
-	adjudicator := ethchannel.NewAdjudicator(cb, adjudicatorAdr, acc.Account.Address)
-	funder := ethchannel.NewETHFunder(cb, assetAddr)
+	if err := setupContracts(ctx.ctx, cb, cfg); err != nil {
+		return nil, errors.WithMessage(err, "setting up contracts")
+	}
 
-	client := client.New(acc, dialer, funder, adjudicator, w.w)
-	go client.Listen(listener)
-	return &Client{cfg: cfg, client: client, w: w.w, onChain: acc, dialer: dialer}, nil
+	adjudicator := ethchannel.NewAdjudicator(cb, common.Address(cfg.Adjudicator.addr), acc.Account.Address)
+	funder := ethchannel.NewETHFunder(cb, common.Address(cfg.AssetHolder.addr))
+	c := client.New(acc, dialer, funder, adjudicator, w.w)
+
+	go c.Listen(listener)
+	return &Client{cfg: cfg, client: c, w: w.w, onChain: acc, dialer: dialer}, nil
 }
 
 // AddPeer adds a new peer to the client. Must be called before proposing
@@ -69,4 +81,27 @@ func NewClient(cfg *Config, w *Wallet) (*Client, error) {
 // ref https://pkg.go.dev/perun.network/go-perun/peer/net?tab=doc#Dialer.Register
 func (c *Client) AddPeer(perunID *Address, host string, port int) {
 	c.dialer.Register((*ethwallet.Address)(&perunID.addr), fmt.Sprintf("%s:%d", host, port))
+}
+
+// setupContracts checks which contracts of the `cfg` are nil and deploys them
+// to the blockchain. Writes the addresses of the deployed contracts back to
+// the `cfg` struct.
+func setupContracts(ctx context.Context, cb ethchannel.ContractBackend, cfg *Config) error {
+	if cfg.Adjudicator == nil {
+		adjudicator, err := ethchannel.DeployAdjudicator(ctx, cb)
+		if err != nil {
+			return errors.WithMessage(err, "deploying adjudicator")
+		}
+		cfg.Adjudicator = &Address{ethwallet.Address(adjudicator)}
+	}
+	if cfg.AssetHolder == nil {
+		assetHolder, err := ethchannel.DeployETHAssetholder(ctx, cb, common.Address(cfg.Adjudicator.addr))
+		if err != nil {
+			return errors.WithMessage(err, "deploying eth assetHolder")
+		}
+		cfg.AssetHolder = &Address{ethwallet.Address(assetHolder)}
+	}
+	// The deployment itself is already logged in the `DeployX` methods
+	log.WithFields(log.Fields{"adjudicator": cfg.Adjudicator.ToHex(), "assetHolder": cfg.AssetHolder.ToHex()}).Debugf("Set contracts")
+	return nil
 }
