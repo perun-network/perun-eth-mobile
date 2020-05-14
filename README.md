@@ -36,8 +36,12 @@ String ethUrl = "ws://10.0.2.2:8545";
 Wallet wallet = new Wallet(appDir +"/wallet", "password");
 // We are alice in this example and this is our on-chain secret key holding the ETH.
 Address alice = wallet.importAccount("0x69cb97043e56883d66627e8f7a828877a56022d0fb05ae6197e6e16fb56282d0");
+// Using null as either Adjudicator or Assetholder tells the Client to deploy the contracts,
+// in this case we already deployed them.
+Address adjudicator = new Address("0xDc4A7e107aD6dBDA1870df34d70B51796BBd1335");
+Address assetholder = new Address("0xb051EAD0C6CC2f568166F8fEC4f07511B88678bA");
 // Listen on 127.0.0.1:5750 for channel Proposals.
-Config cfg = new Config("Alice ", alice, dbPath, ethUrl, "127.0.0.1", 5750);
+Config cfg = new Config("Alice ", alice, adjudicator, assetholder, dbPath, ethUrl, "127.0.0.1", 5750);
 // Create a client, currently skipping the ProposalHandler.
 Client client = new Client(cfg, wallet);
 // PerunId (currently an Address) of the peer that we want to open a channel with.
