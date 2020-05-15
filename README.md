@@ -26,19 +26,20 @@ A sample setup for a two-party-payment channel could look like this:
 ```java
 // You can add a sleep here to ensure that the Android studio logger is attached.
 // Thread.sleep(2000);
-// I hope that this is the correct path for persistent files.
+// This seems to be the correct path for persistent files.
 String appDir = getApplicationContext().getFilesDir().getAbsolutePath();
-String ksPath = appDir +"/keystore";
 String dbPath = appDir +"/database";
 // 10.0.2.2 is the IP of the host PC when using Android Simulator and the host is running a ganache-cli.
 // 8545 is the standart port of ganache-cli.
 String ethUrl = "ws://10.0.2.2:8545";
-// We are alice in this example and this is our on-chain address holding the ETH.
-Address alice = new Address("0x05e71027e7d3bd6261de7634cf50F0e2142067C4");
+// Create a wallet.
+Wallet wallet = new Wallet(appDir +"/wallet", "password");
+// We are alice in this example and this is our on-chain secret key holding the ETH.
+Address alice = wallet.importAccount("0x69cb97043e56883d66627e8f7a828877a56022d0fb05ae6197e6e16fb56282d0");
 // Listen on 127.0.0.1:5750 for channel Proposals.
-Config cfg = new Config("Alice ", ksPath, "password", alice, dbPath, ethUrl, "127.0.0.1", 5750);
-// This is currently missing the ProposalHandler.
-Client client = new Client(cfg);
+Config cfg = new Config("Alice ", alice, dbPath, ethUrl, "127.0.0.1", 5750);
+// Create a client, currently skipping the ProposalHandler.
+Client client = new Client(cfg, wallet);
 // PerunId (currently an Address) of the peer that we want to open a channel with.
 Address bob = new Address("0xA298Fc05bccff341f340a11FffA30567a00e651f");
 // Tell the client what `bob`s ip and port are.
