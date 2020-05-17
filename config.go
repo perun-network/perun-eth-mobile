@@ -18,28 +18,28 @@ import (
 // Config complete configuration needed to operate the Client.
 type Config struct {
 	// Name to be used in state channels.
-	Alias        string
-	Address      *Address // OnChain address also called PerunID.
-	DatabasePath string   // Path to the database file.
-	ETHNodeURL   string   // URL of the ETH node. Example: ws://127.0.0.1:8545
-	IP           string   // Ip to listen on.
-	Port         uint16   // Port to listen on.
+	Alias   string
+	Address *Address // OnChain address and PerunID.
+	// On-chain addresses of the Adjudicator and AssetHolder Contract.
+	// In case any of them is nil, the Client will deploy the contract in its
+	// NewClient constructor.
+	Adjudicator, AssetHolder *Address
+	DatabasePath             string // Path to the database file.
+	ETHNodeURL               string // URL of the ETH node. Example: ws://127.0.0.1:8545
+	IP                       string // Ip to listen on.
+	Port                     uint16 // Port to listen on.
 }
-
-// assetAddr Address of the Asset to be used.
-var assetAddr = common.HexToAddress("0xb051EAD0C6CC2f568166F8fEC4f07511B88678bA")
-
-// adjudicatorAdr Address of the Adjudicator to be used.
-var adjudicatorAdr = common.HexToAddress("0xDc4A7e107aD6dBDA1870df34d70B51796BBd1335")
 
 // Random address
 var appDef = common.HexToAddress("0x0583849a3C5F37aEfAb8cCcA303f9229AdF5A32a")
 
 // NewConfig creates a new configuration
-func NewConfig(alias string, address *Address, databasePath, ETHNodeURL, ip string, port int) *Config {
+func NewConfig(alias string, address, adjudicator, assetHolder *Address, databasePath, ETHNodeURL, ip string, port int) *Config {
 	return &Config{
 		Alias:        alias,
 		Address:      address,
+		Adjudicator:  adjudicator,
+		AssetHolder:  assetHolder,
 		DatabasePath: databasePath,
 		ETHNodeURL:   ETHNodeURL,
 		IP:           ip,
