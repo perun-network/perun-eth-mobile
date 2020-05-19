@@ -7,13 +7,14 @@ package prnm
 
 import (
 	"context"
+	"time"
 )
 
 // Context wraps a golang context/Context with a cancel function when available.
 // See https://golang.org/pkg/context/#Context
 type Context struct {
 	ctx context.Context
-	// used to cancel the context. Only useable when created with `WithCancel`.
+	// used to cancel the context. Does not work on ContextBackground().
 	cancel context.CancelFunc
 }
 
@@ -30,6 +31,15 @@ func (c *Context) WithCancel() *Context {
 	return &Context{ctx: newCtx, cancel: cancel}
 }
 
+// WithTimeout returns a new Context that is automatically cancelled after `seconds` pass or
+// when its parent context is cancelled.
+// It can still be cancelled beforehand with Cancel().
+// ref https://golang.org/pkg/context/#WithTimeout
+func (c *Context) WithTimeout(seconds int) *Context {
+	newCtx, cancel := context.WithTimeout(c.ctx, time.Duration(seconds)*time.Second)
+	return &Context{ctx: newCtx, cancel: cancel}
+}
+
 // ContextWithCancel returns a new Context that can be cancelled with Context.Cancel() from the Background Context.
 // ref https://golang.org/pkg/context/#WithCancel
 func ContextWithCancel() *Context {
@@ -37,7 +47,16 @@ func ContextWithCancel() *Context {
 	return &Context{ctx: ctx, cancel: cancel}
 }
 
-// Cancel cancels the context. Only works on a Context created with Context.WithCancel().
+// ContextWithTimeout returns a new Context that is automatically cancelled after `seconds` pass.
+// It can still be cancelled beforehand with Cancel().
+// ref https://golang.org/pkg/context/#WithTimeout
+func ContextWithTimeout(seconds int) *Context {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
+	return &Context{ctx: ctx, cancel: cancel}
+}
+
+// Cancel cancels the context. Does not work on ContextBackground().
+// It is safe to call Cancel() more than once, even from different threads.
 func (c *Context) Cancel() {
 	if c.cancel != nil {
 		c.cancel()
