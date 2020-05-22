@@ -1,6 +1,6 @@
 # Perun mobile bindings
 This project provides Android bindings for [go-perun](https://github.com/perun-network/go-perun) called *prnm*.  
-Right now it only provides on two-party-payment channels.  
+Right now it only provides two-party-payment channels.  
 
 ## Security Disclaimer
 The authors take no responsibility for any loss of digital assets or other damage caused by the use of this software.  
@@ -8,71 +8,24 @@ The authors take no responsibility for any loss of digital assets or other damag
 
 ### Getting Started
 ```sh
-# Get perun-eth-mobile
-go get -d https://github.com/perun-network/perun-eth-mobile
 # Install gomobile, see https://godoc.org/golang.org/x/mobile/cmd/gomobile
 go get golang.org/x/mobile/cmd/gomobile
 gomobile init
+# Get perun-eth-mobile
+git clone https://github.com/perun-network/perun-eth-mobile
 # Generate the bindings
-gomobile bind -o prnm.aar -target=android github.com/perun-network/perun-eth-mobile/
+cd perun-eth-mobile
+gomobile bind -o android/app/prnm.aar -target=android
 ```
 
-`prnm.aar` can then be included with Android studio.  
-The easiest way of getting started with an app is to try out the *go-mobile* [example app](https://github.com/golang/go/wiki/Mobile#sdk-applications-and-generating-bindings) and instead of using the `hello.aar` replace it with `prnm.aar` that you generated with the command above.
+The `android/` folder is an Android Studio Project, the only two important files are:  
+- `android/app/src/main/java/network/perun/app/MainActivity.java` contains the Apps logic, exemplifying the use of `go-perun`.  
+The `MainActivity` uses a `Node` to propose and accept payment channels.
+The `Node` is started with a `prnm.Config` which contains all needed configuration for the underlying `prnm.Client`. Its contructor creates a `ProposalHandler` that accepts all incomming channel proposals and forwards the new channels to `Node.accept`. `Node.accept` then starts two threads; one with an `UpdateHandler` that accepts all updates and one as on-chain watcher that reacts to disputes and settling. To propose a channel, `Node.propose` can be used.  
+- `android/app/src/main/AndroidManifest.xml` lists the needed App permissions; `INTERNET`,`ACCESS_NETWORK_STATE`,`WRITE_EXTERNAL_STORAGE`,`READ_EXTERNAL_STORAGE`
 
-### In Java
-Go to the `MainActivity.java` of your app and import `prnm.*`. Just to see whether or not the compilation and linking is working, you can try to call `Prnm.contextBackground()` which should return a non-null object.  
-A sample setup for a two-party-payment channel could look like this:  
-```java
-// You can add a sleep here to ensure that the Android studio logger is attached.
-// Thread.sleep(2000);
-// This seems to be the correct path for persistent files.
-String appDir = getApplicationContext().getFilesDir().getAbsolutePath();
-String dbPath = appDir +"/database";
-// 10.0.2.2 is the IP of the host PC when using Android Simulator and the host is running a ganache-cli.
-// 8545 is the standart port of ganache-cli.
-String ethUrl = "ws://10.0.2.2:8545";
-// Create a wallet.
-Wallet wallet = new Wallet(appDir +"/wallet", "password");
-// We are alice in this example and this is our on-chain secret key holding the ETH.
-Address alice = wallet.importAccount("0x69cb97043e56883d66627e8f7a828877a56022d0fb05ae6197e6e16fb56282d0");
-// Using null as either Adjudicator or Assetholder tells the Client to deploy the contracts,
-// in this case we already deployed them.
-Address adjudicator = new Address("0xDc4A7e107aD6dBDA1870df34d70B51796BBd1335");
-Address assetholder = new Address("0xb051EAD0C6CC2f568166F8fEC4f07511B88678bA");
-// Listen on 127.0.0.1:5750 for channel Proposals.
-Config cfg = new Config("Alice ", alice, adjudicator, assetholder, dbPath, ethUrl, "127.0.0.1", 5750);
-// Create a client, currently skipping the ProposalHandler.
-Client client = new Client(cfg, wallet);
-// PerunId (currently an Address) of the peer that we want to open a channel with.
-Address bob = new Address("0xA298Fc05bccff341f340a11FffA30567a00e651f");
-// Tell the client what `bob`s ip and port are.
-client.addPeer(bob, "10.0.2.2", 5750);
-// Create the initial balances of the channel, me starting with 2000 and bob with 1000.
-BigInts initBals = Prnm.newBalances(new BigInt(2000), new BigInt(1000));
-// The ongoing channel proposal can be cancelled with ctx.cancel().
-Context ctx = Prnm.contextWithCancel();
-// Propose a channel to `bob` with `initBals` and 60s challenge duration.
-PaymentChannel channel = client.proposeChannel(ctx, bob, 60, initBals);
-// ctx.cancel() must always be called or it will leak resources.
-// Better put it in the `finally` block of the surounding `try`.
-ctx.cancel();
-```  
-This code must be wrapped in a `try` as the compiler will let you know.  
-You can always `Ctrl+Click` on a *prnm* function to use the Android Studio decompiler, wich is really helpful to see all available Java functions.
-
-The implementation of incoming channel proposals and channel updates will be added shortly.  
-
-
-### Android App permissions
-The `AndroidManifest.xml` file must contain at least the following permissions for the app.  
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-```
-Place this above the `<application>` section.
+After importing the `android/` folder in Android Studio, run it in the Emulator or on a real phone.  
+The opposite party can be either also an App, or a [perun-eth-demo](https://github.com/perun-network/perun-eth-demo)-node.
 
 ## Copyright
 Copyright &copy; 2020 Chair of Applied Cryptography, Technische Universität Darmstadt, Germany.
