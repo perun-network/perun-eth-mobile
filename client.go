@@ -29,7 +29,8 @@ import (
 type Client struct {
 	cfg *Config
 
-	client *client.Client
+	ethClient *ethclient.Client
+	client    *client.Client
 
 	w       *ethwallet.Wallet
 	onChain wallet.Account
@@ -55,7 +56,7 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 		return nil, errors.WithMessagef(err, "listening on %s", endpoint)
 	}
 	dialer := net.NewTCPDialer(time.Second * 15)
-	node, err := ethclient.Dial(cfg.ETHNodeURL)
+	ethClient, err := ethclient.Dial(cfg.ETHNodeURL)
 	if err != nil {
 		return nil, errors.WithMessage(err, "connecting to ethereum node")
 	}
@@ -63,7 +64,7 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "finding account")
 	}
-	cb := ethchannel.NewContractBackend(node, w.w.Ks, &acc.Account)
+	cb := ethchannel.NewContractBackend(ethClient, w.w.Ks, &acc.Account)
 	if err := setupContracts(ctx.ctx, cb, cfg); err != nil {
 		return nil, errors.WithMessage(err, "setting up contracts")
 	}
@@ -73,7 +74,7 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	c := client.New(acc, dialer, funder, adjudicator, w.w)
 
 	go c.Listen(listener)
-	return &Client{cfg: cfg, client: c, w: w.w, onChain: acc, dialer: dialer}, nil
+	return &Client{cfg: cfg, ethClient: ethClient, client: c, w: w.w, onChain: acc, dialer: dialer}, nil
 }
 
 // AddPeer adds a new peer to the client. Must be called before proposing
@@ -104,4 +105,10 @@ func setupContracts(ctx context.Context, cb ethchannel.ContractBackend, cfg *Con
 	// The deployment itself is already logged in the `DeployX` methods
 	log.WithFields(log.Fields{"adjudicator": cfg.Adjudicator.ToHex(), "assetHolder": cfg.AssetHolder.ToHex()}).Debugf("Set contracts")
 	return nil
+}
+
+// OnChainBalance returns the on-chain balance for `address` in Wei.
+func (c *Client) OnChainBalance(ctx *Context, address *Address) (*BigInt, error) {
+	bal, err := c.ethClient.BalanceAt(ctx.ctx, common.Address(address.addr), nil)
+	return &BigInt{bal}, err
 }
