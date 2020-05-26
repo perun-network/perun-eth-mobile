@@ -29,6 +29,27 @@ func NewBigIntFromInt64(v int64) *BigInt {
 	return &BigInt{new(big.Int).SetInt64(v)}
 }
 
+// NewBigIntFromString creates a BigInt by parsing a string.
+// A prefix of "0b" or "0B" selects base 2, "0", "0o" or "0O" selects base 8,
+// and "0x" or "0X" selects base 16. Otherwise, the selected base is 10 and no prefix is accepted.
+// Read documentation of https://pkg.go.dev/math/big?tab=doc#Int.SetString for more details.
+func NewBigIntFromString(data string) (*BigInt, error) {
+	b, success := new(big.Int).SetString(data, 0)
+	if !success {
+		return nil, errors.New("invalid number string")
+	}
+	return &BigInt{b}, nil
+}
+
+// NewBigIntFromStringBase creates a BigInt by parsing a string containing a number of given base.
+func NewBigIntFromStringBase(data string, base int) (*BigInt, error) {
+	b, success := new(big.Int).SetString(data, base)
+	if !success {
+		return nil, errors.New("invalid number string")
+	}
+	return &BigInt{b}, nil
+}
+
 // Add returns the result of the receiver + x. Does not change the reveiver.
 func (b *BigInt) Add(x *BigInt) *BigInt {
 	return &BigInt{new(big.Int).Add(b.i, x.i)}
@@ -47,6 +68,11 @@ func (b *BigInt) ToInt64() int64 {
 // String wraps math/big.Int.String
 func (b *BigInt) String() string {
 	return b.i.String()
+}
+
+// StringBase wraps math/big.Int.Text
+func (b *BigInt) StringBase(base int) string {
+	return b.i.Text(base)
 }
 
 // ToBytesArray wraps math/big.Int.Bytes
