@@ -16,9 +16,11 @@ import (
 
 	ethchannel "perun.network/go-perun/backend/ethereum/channel"
 	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
+	"perun.network/go-perun/channel/persistence/keyvalue"
 	"perun.network/go-perun/client"
 	"perun.network/go-perun/log"
 	"perun.network/go-perun/peer/net"
+	"perun.network/go-perun/pkg/sortedkv/leveldb"
 	"perun.network/go-perun/wallet"
 )
 
@@ -32,6 +34,7 @@ type (
 
 		ethClient *ethclient.Client
 		client    *client.Client
+		persister *keyvalue.PersistRestorer
 
 		w       *ethwallet.Wallet
 		onChain wallet.Account
@@ -82,14 +85,20 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	c := client.New(acc, dialer, funder, adjudicator, w.w)
 
 	go c.Listen(listener)
-	return &Client{cfg: cfg, ethClient: ethClient, client: c, w: w.w, onChain: acc, dialer: dialer}, nil
+	return &Client{cfg: cfg, ethClient: ethClient, client: c, persister: nil, w: w.w, onChain: acc, dialer: dialer}, nil
 }
 
 // Close closes the client and its PersistRestorer to synchronize the database.
 // ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel.Close
 // ref https://pkg.go.dev/perun.network/go-perun/channel/persistence/keyvalue?tab=doc#PersistRestorer.Close
-func (c *Client) Close() {
-	c.client.Close()
+func (c *Client) Close() error {
+	if err := c.client.Close(); err != nil {
+		return errors.WithMessage(err, "closing client")
+	}
+	if c.persister != nil {
+		return errors.WithMessage(c.persister.Close(), "closing persister")
+	}
+	return nil
 }
 
 // Handle is the handler routine for channel proposals and channel updates. It
@@ -110,6 +119,44 @@ func (c *Client) OnNewChannel(callback NewChannelCallback) {
 	c.client.OnNewChannel(func(ch *client.Channel) {
 		callback.OnNew(&PaymentChannel{ch})
 	})
+}
+
+// EnablePersistence loads or creates a levelDB database at the given `dbPath`
+// and tries to restore all channels from it.
+// After this function was successfully called, all changes to the Client are
+// saved to the database.
+// This function is not thread safe.
+// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client.EnablePersistence
+func (c *Client) EnablePersistence(dbPath string) (err error) {
+	var db *leveldb.Database
+
+	db, err = leveldb.LoadDatabase(dbPath)
+	if err != nil {
+		return errors.WithMessage(err, "creating/loading database")
+	}
+	c.persister, err = keyvalue.NewPersistRestorer(db)
+	if err != nil {
+		return errors.WithMessage(err, "creating PersistRestorer")
+	}
+
+	c.client.EnablePersistence(c.persister)
+	return nil
+}
+
+// Reconnect attempts to reconnect to all known peers from persistence. This
+// will restore all channels for all peers to which a connection could
+// successfully be established. Newly restored channels should be acquired
+// through the OnNewChannel callback.
+// Set the Client.OnNewChannel handler and call EnablePersistence before
+// calling Reconnect.
+// Note that connections are currently established serially, so allow for
+// enough time in the passed context.
+// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client.Reconnect
+func (c *Client) Reconnect(ctx *Context) error {
+	if c.persister == nil {
+		return errors.New("persistence not enabled")
+	}
+	return c.client.Reconnect(ctx.ctx)
 }
 
 // AddPeer adds a new peer to the client. Must be called before proposing
