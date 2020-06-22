@@ -22,21 +22,29 @@ import (
 	"perun.network/go-perun/wallet"
 )
 
-// Client is a state channel client. It is the central controller to interact
-// with a state channel network. It can be used to propose channels to other
-// channel network peers.
-// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client
-type Client struct {
-	cfg *Config
+type (
+	// Client is a state channel client. It is the central controller to interact
+	// with a state channel network. It can be used to propose channels to other
+	// channel network peers.
+	// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client
+	Client struct {
+		cfg *Config
 
-	ethClient *ethclient.Client
-	client    *client.Client
+		ethClient *ethclient.Client
+		client    *client.Client
 
-	w       *ethwallet.Wallet
-	onChain wallet.Account
+		w       *ethwallet.Wallet
+		onChain wallet.Account
 
-	dialer *net.Dialer
-}
+		dialer *net.Dialer
+	}
+
+	// NewChannelCallback wraps a `func(*PaymentChannel)`
+	// function pointer for the `Client.OnNewChannel` callback.
+	NewChannelCallback interface {
+		OnNew(*PaymentChannel)
+	}
+)
 
 // NewClient sets up a new Client with configuration `cfg`.
 // The Client:
@@ -75,6 +83,33 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 
 	go c.Listen(listener)
 	return &Client{cfg: cfg, ethClient: ethClient, client: c, w: w.w, onChain: acc, dialer: dialer}, nil
+}
+
+// Close closes the client and its PersistRestorer to synchronize the database.
+// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel.Close
+// ref https://pkg.go.dev/perun.network/go-perun/channel/persistence/keyvalue?tab=doc#PersistRestorer.Close
+func (c *Client) Close() {
+	c.client.Close()
+}
+
+// Handle is the handler routine for channel proposals and channel updates. It
+// must only be started at most once by the user.
+// Incoming proposals and updates are forwarded to the passed handlers.
+// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client.Handle
+func (c *Client) Handle(ph ProposalHandler, uh UpdateHandler) {
+	c.client.Handle(&proposalHandler{c: c, h: ph}, &updateHandler{h: uh})
+}
+
+// OnNewChannel sets a handler to be called whenever a new channel is created
+// or restored. Only one such handler can be set at a time, and repeated calls
+// to this function will overwrite the currently existing handler. This
+// function may be safely called at any time.
+// Start the watcher routine here, if needed.
+// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client.OnNewChannel
+func (c *Client) OnNewChannel(callback NewChannelCallback) {
+	c.client.OnNewChannel(func(ch *client.Channel) {
+		callback.OnNew(&PaymentChannel{ch})
+	})
 }
 
 // AddPeer adds a new peer to the client. Must be called before proposing

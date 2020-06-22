@@ -7,20 +7,13 @@ package prnm
 
 import "perun.network/go-perun/client"
 
-// HandleUpdates is the incoming channel update handler routine. It should
-// immediately be started by the user after the channel controller is passed to
-// them.
-func (c *PaymentChannel) HandleUpdates(handler UpdateHandler) {
-	c.ch.ListenUpdates(&updateHandler{h: handler})
-}
-
 type (
 	// An UpdateHandler decides how to handle incoming channel update requests
 	// from other channel participants.
 	UpdateHandler interface {
-		// Handle is the user callback called by the channel controller on an
-		// incoming update request.
-		Handle(*ChannelUpdate, *UpdateResponder)
+		// HandleUpdate is the user callback called by the channel controller
+		// on an incoming update request.
+		HandleUpdate(*ChannelUpdate, *UpdateResponder)
 	}
 
 	// updateHandler implements a client.UpdateHandler wrapping a prnm
@@ -46,16 +39,16 @@ type (
 	}
 )
 
-// Handle implements the client.UpdateHandler interface by converting the
+// HandleUpdate implements the client.UpdateHandler interface by converting the
 // passed types from the go-perun/client package into their local counterparts
 // and then calling the prnm.UpdateHandler.
-func (h *updateHandler) Handle(_update client.ChannelUpdate, _resp *client.UpdateResponder) {
+func (h *updateHandler) HandleUpdate(_update client.ChannelUpdate, _resp *client.UpdateResponder) {
 	update := &ChannelUpdate{
 		State:    &State{_update.State},
 		ActorIdx: int(_update.ActorIdx),
 	}
 	resp := &UpdateResponder{r: _resp}
-	h.h.Handle(update, resp)
+	h.h.HandleUpdate(update, resp)
 }
 
 // Accept lets the user signal that they want to accept the channel update.

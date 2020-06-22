@@ -6,6 +6,11 @@ import android.util.Log;
 import android.widget.TextView;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.nio.ByteBuffer;
+import java.math.BigInteger;
 
 import prnm.*;
 
@@ -43,59 +48,107 @@ public class MainActivity extends Activity {
             Address adjudicator = new Address("0xDc4A7e107aD6dBDA1870df34d70B51796BBd1335");
             Address assetholder = new Address("0xb051EAD0C6CC2f568166F8fEC4f07511B88678bA");
             // We will be listening on 127.0.0.1:5750 for new channel proposals with the alias "Alice".
-            Config cfg = new Config("Alice ", onChain, adjudicator, assetholder, dbPath, ethUrl, "127.0.0.1", 5750);
+            Config cfg = new Config("Alice", onChain, adjudicator, assetholder, dbPath, ethUrl, "127.0.0.1", 5750);
             node = new Node(cfg, wallet);
-
+            Address bob = new Address("0xA298Fc05bccff341f340a11FffA30567a00e651f");
+            // Create the initial balances of the channel, we start with 2000 and bob with 1000.
+            node.addPeer(bob, "10.0.2.2", 5750);
             // (Optional) Propose a channel to bob:
             // (Without the following lines, the node will still accept incoming channel proposals.)
             //
             // PerunId (currently an Address) of the peer that we want to open a channel with.
-            Address bob = new Address("0xA298Fc05bccff341f340a11FffA30567a00e651f");
-            // Create the initial balances of the channel, we start with 2000 and bob with 1000.
-            BigInts initBals = Prnm.newBalances(new BigInt(2000), new BigInt(1000));
+            BigInts initBals = Prnm.newBalances(new BigInt("2000000000000000000", 10), new BigInt("1000000000000000000", 10));
             // Send the proposal. Once the channel was accepted, the node will handle the
             // channel updates and onChain watching.
-            node.propose(bob, initBals, "10.0.2.2", 5750);
+            node.propose(bob, initBals);
         } catch (Exception e) {
             Log.e("prnm", e.toString());
         }
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        node.close();
+    }
 }
 
-class Node implements ChannelAcceptor {
+class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.UpdateHandler {
     Client client;
+    // Since java uses _pointer comparison_ for byte[] keys in a map, we need to wrap it in ByteBuffer.
+    Map<ByteBuffer, PaymentChannel> chs = new ConcurrentHashMap<ByteBuffer, PaymentChannel>();
 
     public Node(Config cfg, Wallet wallet) throws Exception {
         // Possibly has to deploy contracts, so give it some extra time.
         Context ctx = Prnm.contextWithTimeout(600);
         try {
             client = new Client(ctx, cfg, wallet);
+            // Set the handler for new channels.
+            client.onNewChannel(this);
         } finally {
             ctx.cancel();
         }
-
-        // Start a new thread for handling channel proposals.
+        // Start a new thread for handling channel proposals and channel updates.
         new Thread(() -> {
-            ProposalHandler propHandler = new ProposalHandler(this);
-            client.handleChannelProposals(propHandler);
+            client.handle(this, this);
         }).start();
     }
 
-    public void propose(Address peer, BigInts initBals, String ip, int port) throws Exception {
+    public void close() {
+        client.close();
+    }
+
+    public void addPeer(prnm.Address peer, String ip, int port) {
         // This is safe to call more than once.
         client.addPeer(peer, ip, port);
+    }
+
+    public void propose(Address peer, BigInts initBals) throws Exception {
         // Has to send transactions, so give it some extra time.
         Context ctx = Prnm.contextWithTimeout(600);
         try {
-            accept(client.proposeChannel(ctx, peer, 60, initBals));
+            byte[] id = client.proposeChannel(ctx, peer, 60, initBals).getParams().getID();
+            // Retrive the channel from chs which was inserted by accept.
+            PaymentChannel ch = chs.get(ByteBuffer.wrap(id));
+            if (ch == null)
+                throw new Exception(String.format("propose: channel not found id=%s", new BigInteger(1, id).toString(16)));
+            Log.i("prnm", "Proposal to peer " + peer.toHex() + " successful, id: " + ch.getParams().getID());
         } finally {
             ctx.cancel();
         }
     }
 
+    // Handles all channel proposals by accepting them.
     @Override
-    public void accept(PaymentChannel channel) {
-        Log.i("prnm", "New channel " +channel.getIdx());
+    public void handleProposal(ChannelProposal proposal, ProposalResponder responder) {
+        Context ctx = Prnm.contextWithTimeout(600);
+        try {
+            BigInts bals = proposal.getInitBals();
+            Log.i("prnm", String.format("Channel proposal (id=%s, bals=[%d,%d])", proposal.getPeerPerunID().toHex(), bals.get(0).toInt64(), bals.get(1).toInt64()));
+            byte[] id = responder.accept(ctx).getParams().getID();
+            // Retrive the channel from chs which was inserted by accept.
+            PaymentChannel ch = chs.get(ByteBuffer.wrap(id));
+            if (ch == null)
+                throw new Exception(String.format("accept: channel not found id=%s", new BigInteger(1, id).toString(16)));
+             Log.i("prnm", "Accepted new channel proposal (id=" + ch.getParams().getID());
+        } catch (Exception e) {
+            Log.e("prnm", e.toString());
+        } finally {
+            ctx.cancel();
+        }
+    }
+
+    // Handles all new channels by calling `watch` on them.
+    @Override
+    public void onNew(PaymentChannel channel) {
+        byte[] id = channel.getParams().getID();
+        if (chs.containsKey(ByteBuffer.wrap(id))) {
+            Log.w("prnm", "Overriding Channel " + id);
+        } else {
+            Log.i("prnm", "New channel " + new BigInteger(1, id).toString(16));
+        }
+        chs.put(ByteBuffer.wrap(id), channel);
+
         // Start a new thread for watching the channel.
         new Thread(() -> {
             try {
@@ -106,61 +159,18 @@ class Node implements ChannelAcceptor {
                 Log.e("channel", "Error watching:" + e.toString());
             }
         }).start();
-
-        // Start a new thread for handling channel updates.
-        new Thread(() -> {
-            UpdateHandler updateHandler = new UpdateHandler(channel);
-            Log.d("channel", "Starting handling updates");
-            channel.handleUpdates(updateHandler);
-            Log.d("channel", "Stopped handling updates");
-        }).start();
-    }
-}
-
-interface ChannelAcceptor {
-    // accept will be called on every new accepted channel.
-    public void accept(PaymentChannel channel);
-}
-
-class ProposalHandler implements prnm.ProposalHandler {
-    ChannelAcceptor acc;
-
-    public ProposalHandler(ChannelAcceptor acceptor) {
-        acc = acceptor;
-    }
-
-    // Handles all channel proposals by accepting them.
-    @Override
-    public void handle(ChannelProposal proposal, ProposalResponder responder) {
-        Context ctx = Prnm.contextWithTimeout(600);
-        try {
-            BigInts bals = proposal.getInitBals();
-            Log.i("prnm", String.format("Channel proposal (id=%s, bals=[%d,%d])", proposal.getPeerPerunID().toHex(), bals.get(0).toInt64(), bals.get(1).toInt64()));
-            acc.accept(responder.accept(ctx));
-        } catch (Exception e) {
-            Log.e("prnm", e.toString());
-        } finally {
-            ctx.cancel();
-        }
-    }
-}
-
-class UpdateHandler implements prnm.UpdateHandler {
-    PaymentChannel ch;
-
-    public UpdateHandler(PaymentChannel channel) {
-        ch = channel;
     }
 
     // Handles all channel updates by accepting them.
     @Override
-    public void handle(ChannelUpdate update, UpdateResponder responder) {
+    public void handleUpdate(ChannelUpdate update, UpdateResponder responder) {
         Context ctx = Prnm.contextWithTimeout(5);
         try {
             State state = update.getState();
             Log.i("channel", String.format("Update (version=%d, isFinal=%b)", state.getVersion(), state.isFinal()));
             responder.accept(ctx);
-            Log.d("channel", String.format("Accepting update (version=%d)", state.getVersion()));
+            BigInts bals = update.getState().getBalances();
+            Log.d("channel", String.format("Acceped update (version=%d, bals=[%s, %s])", state.getVersion(), bals.get(update.getActorIdx()).toString(), bals.get(1-update.getActorIdx()).toString()));
         } catch (Exception e) {
             Log.e("channel", e.toString());
         } finally {

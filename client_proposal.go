@@ -58,20 +58,13 @@ func (c *Client) ProposeChannel(
 	return &PaymentChannel{_ch}, err
 }
 
-// HandleChannelProposals is the incoming channel proposal handler routine. It
-// must only be started at most once by the user. Incoming channel proposals are
-// handled using the passed handler.
-func (c *Client) HandleChannelProposals(h ProposalHandler) {
-	c.client.HandleChannelProposals(&proposalHandler{c: c, h: h})
-}
-
 type (
 	// A ProposalHandler decides how to handle incoming channel proposals from
 	// other channel network peers.
 	ProposalHandler interface {
-		// Handle is the user callback called by the Client on an incoming channel
-		// proposal.
-		Handle(*ChannelProposal, *ProposalResponder)
+		// HandleProposal is the user callback called by the Client on an
+		// incoming channel proposal.
+		HandleProposal(*ChannelProposal, *ProposalResponder)
 	}
 
 	// proposalHandler implements a client.ProposalHandler wrapping a prnm
@@ -100,10 +93,10 @@ type (
 	}
 )
 
-// Handle implements the client.ProposalHandler interface by converting the
+// HandleProposal implements the client.ProposalHandler interface by converting the
 // passed types from the go-perun/client package into their local conterparts
 // and then calling the prnm.ProposalHandler.
-func (h *proposalHandler) Handle(_prop *client.ChannelProposal, _resp *client.ProposalResponder) {
+func (h *proposalHandler) HandleProposal(_prop *client.ChannelProposal, _resp *client.ProposalResponder) {
 	// Security Note: we don't check the remote nonce or channel participant. If
 	// this code were to evolve to production grade, this needs to be taken care
 	// of. In this case, at least the Nonce should be part of the ChannelProposal
@@ -114,7 +107,7 @@ func (h *proposalHandler) Handle(_prop *client.ChannelProposal, _resp *client.Pr
 		InitBals:          &BigInts{_prop.InitBals.Balances[0]},
 	}
 	resp := &ProposalResponder{c: h.c, r: _resp}
-	h.h.Handle(prop, resp)
+	h.h.HandleProposal(prop, resp)
 }
 
 // Accept lets the user signal that they want to accept the channel proposal.
