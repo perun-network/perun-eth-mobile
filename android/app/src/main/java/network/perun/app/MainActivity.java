@@ -48,11 +48,21 @@ public class MainActivity extends Activity {
             Address adjudicator = new Address("0xDc4A7e107aD6dBDA1870df34d70B51796BBd1335");
             Address assetholder = new Address("0xb051EAD0C6CC2f568166F8fEC4f07511B88678bA");
             // We will be listening on 127.0.0.1:5750 for new channel proposals with the alias "Alice".
-            Config cfg = new Config("Alice", onChain, adjudicator, assetholder, dbPath, ethUrl, "127.0.0.1", 5750);
+            Config cfg = new Config("Alice", onChain, adjudicator, assetholder, ethUrl, "127.0.0.1", 5750);
             node = new Node(cfg, wallet);
             Address bob = new Address("0xA298Fc05bccff341f340a11FffA30567a00e651f");
             // Create the initial balances of the channel, we start with 2000 and bob with 1000.
             node.addPeer(bob, "10.0.2.2", 5750);
+
+            // (Optional) Enable the persistence and reconnect to peers:
+            //
+            // EnablePersistence attempts to load the database from the given path or creates
+            // a new one. It then retrives all channels from the database.
+            node.enablePersistence(dbPath);
+            // Reconnect tries to reetablish connections to all previously connected peers.
+            // It needs to be called only once, but all peers need to be added beforehand.
+            node.reconnect();
+
             // (Optional) Propose a channel to bob:
             // (Without the following lines, the node will still accept incoming channel proposals.)
             //
@@ -94,8 +104,25 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
         }).start();
     }
 
+    public void reconnect() throws Exception {
+        Context ctx = Prnm.contextWithTimeout(20);
+        try {
+            client.reconnect(ctx);
+        } finally {
+            ctx.cancel();
+        }
+    }
+
+    public void enablePersistence(String dbPath) throws Exception {
+        client.enablePersistence(dbPath);
+    }
+
     public void close() {
-        client.close();
+        try {
+            client.close();
+        } catch (Exception e) {
+            Log.e("prnm", "Error while closing the client: " + e.toString());
+        }
     }
 
     public void addPeer(prnm.Address peer, String ip, int port) {
