@@ -91,7 +91,7 @@ func (c *PaymentChannel) Watch() error {
 
 // Send pays `amount` to the counterparty. Only positive amounts are supported.
 func (c *PaymentChannel) Send(ctx *Context, amount *BigInt) error {
-	if amount.i.Sign() <= 1 {
+	if amount.i.Sign() < 1 {
 		return errors.New("Only positive amounts supported in send")
 	}
 
