@@ -56,7 +56,7 @@ func (b *BigInt) Add(x *BigInt) *BigInt {
 }
 
 // Sub returns the result of the receiver - x. Does not change the reveiver.
-func (b *BigInt) Sub(x, y *BigInt) *BigInt {
+func (b *BigInt) Sub(x *BigInt) *BigInt {
 	return &BigInt{new(big.Int).Sub(b.i, x.i)}
 }
 
