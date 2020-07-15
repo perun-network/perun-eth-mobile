@@ -71,7 +71,7 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "connecting to ethereum node")
 	}
-	acc, err := w.findAccount(*cfg.Address)
+	acc, err := w.unlock(*cfg.Address)
 	if err != nil {
 		return nil, errors.WithMessage(err, "finding account")
 	}
