@@ -8,7 +8,6 @@ package prnm
 import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 
@@ -68,7 +67,7 @@ func (w *Wallet) CreateAccount() *Address {
 	return &Address{ethwallet.Address(w.w.NewAccount().Account.Address)}
 }
 
-func (w *Wallet) findAccount(a Address) (*ethwallet.Account, error) {
-	ethAcc, err := w.w.Ks.Find(accounts.Account{Address: (common.Address)(a.addr)})
-	return ethwallet.NewAccountFromEth(w.w, &ethAcc), err
+func (w *Wallet) unlock(a Address) (*ethwallet.Account, error) {
+	acc, err := w.w.Unlock(&a.addr)
+	return acc.(*ethwallet.Account), err
 }
