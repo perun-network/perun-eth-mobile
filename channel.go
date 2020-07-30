@@ -136,14 +136,6 @@ func (c *PaymentChannel) Settle(ctx *Context) error {
 	return c.ch.Settle(ctx.ctx)
 }
 
-// Close closes the channel and all associated peer subscriptions.
-// Note that this does not settle the channel. So call settle before if
-// you don't want to loose all funds locked in the channel.
-// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel.Close
-func (c *PaymentChannel) Close() error {
-	return c.ch.Close()
-}
-
 // GetState returns the current state. Do not modify it.
 // ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel.State
 func (c *PaymentChannel) GetState() *State {

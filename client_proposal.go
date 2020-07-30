@@ -48,7 +48,7 @@ func (c *Client) ProposeChannel(
 	prop := &client.ChannelProposal{
 		ChallengeDuration: uint64(challengeDuration),
 		Nonce:             nonce(),
-		ParticipantAddr:   c.w.NewAccount().Address(),
+		ParticipantAddr:   c.wallet.NewAccount().Address(),
 		AppDef:            payment.AppDef(),
 		InitData:          &payment.NoData{},
 		InitBals:          alloc,
@@ -125,7 +125,7 @@ func (h *proposalHandler) HandleProposal(_prop *client.ChannelProposal, _resp *c
 func (r *ProposalResponder) Accept(ctx *Context) (*PaymentChannel, error) {
 	ch, err := r.r.Accept(ctx.ctx, client.ProposalAcc{
 		// Generate new account as channel participant.
-		Participant: r.c.w.NewAccount().Address(),
+		Participant: r.c.wallet.NewAccount().Address(),
 	})
 	return &PaymentChannel{ch}, err
 }
