@@ -19,9 +19,10 @@ import (
 	"perun.network/go-perun/channel/persistence/keyvalue"
 	"perun.network/go-perun/client"
 	"perun.network/go-perun/log"
-	"perun.network/go-perun/peer/net"
 	"perun.network/go-perun/pkg/sortedkv/leveldb"
 	"perun.network/go-perun/wallet"
+	"perun.network/go-perun/wire/net"
+	"perun.network/go-perun/wire/net/simple"
 )
 
 type (
@@ -36,10 +37,11 @@ type (
 		client    *client.Client
 		persister *keyvalue.PersistRestorer
 
-		w       *ethwallet.Wallet
+		wallet  *ethwallet.Wallet
 		onChain wallet.Account
 
-		dialer *net.Dialer
+		dialer *simple.Dialer
+		bus    *net.Bus
 	}
 
 	// NewChannelCallback wraps a `func(*PaymentChannel)`
@@ -62,15 +64,16 @@ type (
 //    addresses in case they were deployed.
 func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	endpoint := fmt.Sprintf("%s:%d", cfg.IP, cfg.Port)
-	listener, err := net.NewTCPListener(endpoint)
+	listener, err := simple.NewTCPListener(endpoint)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "listening on %s", endpoint)
 	}
-	dialer := net.NewTCPDialer(time.Second * 15)
+	dialer := simple.NewTCPDialer(time.Second * 15)
 	ethClient, err := ethclient.Dial(cfg.ETHNodeURL)
 	if err != nil {
 		return nil, errors.WithMessage(err, "connecting to ethereum node")
 	}
+
 	acc, err := w.unlock(*cfg.Address)
 	if err != nil {
 		return nil, errors.WithMessage(err, "finding account")
@@ -80,12 +83,22 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 		return nil, errors.WithMessage(err, "setting up contracts")
 	}
 
+	bus := net.NewBus(acc, dialer)
 	adjudicator := ethchannel.NewAdjudicator(cb, common.Address(cfg.Adjudicator.addr), acc.Account.Address)
 	funder := ethchannel.NewETHFunder(cb, common.Address(cfg.AssetHolder.addr))
-	c := client.New(acc, dialer, funder, adjudicator, w.w)
+	c, err := client.New(acc.Address(), bus, funder, adjudicator, w.w)
+	if err != nil {
+		return nil, errors.WithMessage(err, "creating client")
+	}
+	go bus.Listen(listener)
 
-	go c.Listen(listener)
-	return &Client{cfg: cfg, ethClient: ethClient, client: c, persister: nil, w: w.w, onChain: acc, dialer: dialer}, nil
+	return &Client{cfg: cfg, ethClient: ethClient,
+		client:    c,
+		persister: nil,
+		wallet:    w.w,
+		onChain:   acc,
+		dialer:    dialer,
+		bus:       bus}, nil
 }
 
 // Close closes the client and its PersistRestorer to synchronize the database.
@@ -94,6 +107,9 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 func (c *Client) Close() error {
 	if err := c.client.Close(); err != nil {
 		return errors.WithMessage(err, "closing client")
+	}
+	if err := c.bus.Close(); err != nil {
+		return errors.WithMessage(err, "closing bus")
 	}
 	if c.persister != nil {
 		return errors.WithMessage(c.persister.Close(), "closing persister")
@@ -134,29 +150,22 @@ func (c *Client) EnablePersistence(dbPath string) (err error) {
 	if err != nil {
 		return errors.WithMessage(err, "creating/loading database")
 	}
-	c.persister, err = keyvalue.NewPersistRestorer(db)
-	if err != nil {
-		return errors.WithMessage(err, "creating PersistRestorer")
-	}
-
+	c.persister = keyvalue.NewPersistRestorer(db)
 	c.client.EnablePersistence(c.persister)
 	return nil
 }
 
-// Reconnect attempts to reconnect to all known peers from persistence. This
-// will restore all channels for all peers to which a connection could
-// successfully be established. Newly restored channels should be acquired
-// through the OnNewChannel callback.
-// Set the Client.OnNewChannel handler and call EnablePersistence before
-// calling Reconnect.
+// Restore restores all channels from persistence. Channels are restored in
+// parallel. Newly restored channels should be acquired through the
+// OnNewChannel callback.
 // Note that connections are currently established serially, so allow for
 // enough time in the passed context.
-// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client.Reconnect
-func (c *Client) Reconnect(ctx *Context) error {
+// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Client.Restore
+func (c *Client) Restore(ctx *Context) error {
 	if c.persister == nil {
 		return errors.New("persistence not enabled")
 	}
-	return c.client.Reconnect(ctx.ctx)
+	return c.client.Restore(ctx.ctx)
 }
 
 // AddPeer adds a new peer to the client. Must be called before proposing
