@@ -7,11 +7,12 @@ package prnm
 
 import (
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
+	ethkeystore "github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 
 	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
+	"perun.network/go-perun/backend/ethereum/wallet/keystore"
 )
 
 // Wallet represents an ethereum wallet. It uses the go-ethereum keystore to
@@ -19,7 +20,7 @@ import (
 // create two wallets from the same key directory.
 // ref https://pkg.go.dev/perun.network/go-perun/backend/ethereum/wallet?tab=doc#Wallet
 type Wallet struct {
-	w        *ethwallet.Wallet
+	w        *keystore.Wallet
 	password string
 }
 
@@ -27,8 +28,8 @@ type Wallet struct {
 func NewWallet(path, password string) (*Wallet, error) {
 	// We use 2,1 as scrypt parameters here for development because on an Android phone
 	// it is quite slow to use the standard parameters. Do not to this in production.
-	ks := keystore.NewKeyStore(path, 2, 1)
-	w, err := ethwallet.NewWallet(ks, password)
+	ks := ethkeystore.NewKeyStore(path, 2, 1)
+	w, err := keystore.NewWallet(ks, password)
 	return &Wallet{w: w, password: password}, errors.WithMessage(err, "creating wallet")
 }
 
@@ -53,7 +54,7 @@ func (w *Wallet) ImportAccount(secretKey string) (*Address, error) {
 		}
 	}
 
-	wAcc := ethwallet.NewAccountFromEth(w.w, &ethAcc)
+	wAcc := keystore.NewAccountFromEth(w.w, &ethAcc)
 	acc, err := w.w.Unlock(wAcc.Address())
 	if err != nil {
 		return nil, errors.WithMessage(err, "unlocking account")
@@ -67,7 +68,7 @@ func (w *Wallet) CreateAccount() *Address {
 	return &Address{ethwallet.Address(w.w.NewAccount().Account.Address)}
 }
 
-func (w *Wallet) unlock(a Address) (*ethwallet.Account, error) {
+func (w *Wallet) unlock(a Address) (*keystore.Account, error) {
 	acc, err := w.w.Unlock(&a.addr)
-	return acc.(*ethwallet.Account), err
+	return acc.(*keystore.Account), err
 }

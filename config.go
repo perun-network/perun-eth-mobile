@@ -6,11 +6,8 @@
 package prnm
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
-	"perun.network/go-perun/apps/payment"
-	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
 	"perun.network/go-perun/log"
 	plogrus "perun.network/go-perun/log/logrus"
 )
@@ -29,9 +26,6 @@ type Config struct {
 	Port                     uint16 // Port to listen on.
 }
 
-// Random address
-var appDef = common.HexToAddress("0x0583849a3C5F37aEfAb8cCcA303f9229AdF5A32a")
-
 // NewConfig creates a new configuration
 func NewConfig(alias string, address, adjudicator, assetHolder *Address, ETHNodeURL, ip string, port int) *Config {
 	return &Config{
@@ -48,8 +42,6 @@ func NewConfig(alias string, address, adjudicator, assetHolder *Address, ETHNode
 var logger *logrus.Logger
 
 func init() {
-	payment.SetAppDef((*ethwallet.Address)(&appDef))
-
 	logger = logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
 	log.Set(plogrus.FromLogrus(logger))
