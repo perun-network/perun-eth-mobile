@@ -6,15 +6,13 @@
 package prnm
 
 import (
-	"crypto/rand"
-	"math/big"
+	"github.com/pkg/errors"
 
-	"perun.network/go-perun/apps/payment"
 	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
 	"perun.network/go-perun/channel"
 	"perun.network/go-perun/client"
 	"perun.network/go-perun/log"
-	"perun.network/go-perun/wallet"
+	"perun.network/go-perun/wire"
 )
 
 // ProposeChannel proposes a new channel to the given peer (perunID) with
@@ -45,14 +43,14 @@ func (c *Client) ProposeChannel(
 		Assets:   []channel.Asset{(*ethwallet.Address)(&c.cfg.AssetHolder.addr)},
 		Balances: [][]channel.Bal{initialBals.values},
 	}
-	prop := &client.ChannelProposal{
-		ChallengeDuration: uint64(challengeDuration),
-		Nonce:             nonce(),
-		ParticipantAddr:   c.wallet.NewAccount().Address(),
-		AppDef:            payment.AppDef(),
-		InitData:          &payment.NoData{},
-		InitBals:          alloc,
-		PeerAddrs:         []wallet.Address{c.onChain.Address(), (*ethwallet.Address)(&perunID.addr)},
+	prop, err := client.NewLedgerChannelProposal(
+		uint64(challengeDuration),
+		c.wallet.NewAccount().Address(),
+		alloc,
+		[]wire.Address{c.onChain.Address(), (*ethwallet.Address)(&perunID.addr)},
+		client.WithoutApp())
+	if err != nil {
+		return nil, err
 	}
 	_ch, err := c.client.ProposeChannel(ctx.ctx, prop)
 	return &PaymentChannel{_ch}, err
@@ -78,7 +76,7 @@ type (
 	//
 	// The proposer has index 0 and proposee index 1.
 	ChannelProposal struct {
-		PeerPerunID       *Address // The peer proposing the channel.
+		Peer              *Address // The peer proposing the channel.
 		ChallengeDuration int64    // Proposed challenge duration in case of disputes, in seconds.
 		InitBals          *BigInts // Initial channel balances.
 	}
@@ -88,7 +86,8 @@ type (
 	// Reject(). Only a single function must be called and every further call
 	// causes a panic.
 	ProposalResponder struct {
-		c *Client                   // back-reference for account generation in Accept
+		c *Client // back-reference for account generation in Accept
+		p client.LedgerChannelProposal
 		r *client.ProposalResponder // wrapped ProposalResponder
 	}
 )
@@ -96,17 +95,27 @@ type (
 // HandleProposal implements the client.ProposalHandler interface by converting the
 // passed types from the go-perun/client package into their local conterparts
 // and then calling the prnm.ProposalHandler.
-func (h *proposalHandler) HandleProposal(_prop *client.ChannelProposal, _resp *client.ProposalResponder) {
+func (h *proposalHandler) HandleProposal(_prop client.ChannelProposal, _resp *client.ProposalResponder) {
+	ledgerProp, ok := _prop.(*client.LedgerChannelProposal)
+	if !ok {
+		// We can not reject here since there is no context available.
+		log.Warn("Ignored sub-channel proposal")
+		return
+	}
+	if err := checkProp(*ledgerProp); err != nil {
+		log.Warn("Ignored proposal: ", err)
+		return
+	}
 	// Security Note: we don't check the remote nonce or channel participant. If
 	// this code were to evolve to production grade, this needs to be taken care
 	// of. In this case, at least the Nonce should be part of the ChannelProposal
 	// struct, as is the case for the client.ChannelProposal.
 	prop := &ChannelProposal{
-		PeerPerunID:       &Address{*(_prop.PeerAddrs[0]).(*ethwallet.Address)},
-		ChallengeDuration: int64(_prop.ChallengeDuration),
-		InitBals:          &BigInts{_prop.InitBals.Balances[0]},
+		Peer:              &Address{*(ledgerProp.Participant).(*ethwallet.Address)},
+		ChallengeDuration: int64(ledgerProp.ChallengeDuration),
+		InitBals:          &BigInts{ledgerProp.InitBals.Balances[0]},
 	}
-	resp := &ProposalResponder{c: h.c, r: _resp}
+	resp := &ProposalResponder{c: h.c, p: *ledgerProp, r: _resp}
 	h.h.HandleProposal(prop, resp)
 }
 
@@ -123,10 +132,10 @@ func (h *proposalHandler) HandleProposal(_prop *client.ChannelProposal, _resp *c
 // ChallengeDuration has passed (at least for real blockchain backends with wall
 // time), or the channel cannot be settled if a peer times out funding.
 func (r *ProposalResponder) Accept(ctx *Context) (*PaymentChannel, error) {
-	ch, err := r.r.Accept(ctx.ctx, client.ProposalAcc{
-		// Generate new account as channel participant.
-		Participant: r.c.wallet.NewAccount().Address(),
-	})
+	// Generate new account as channel participant.
+	account := r.c.wallet.NewAccount().Address()
+	acceptor := r.p.Accept(account, client.WithRandomNonce())
+	ch, err := r.r.Accept(ctx.ctx, acceptor)
 	return &PaymentChannel{ch}, err
 }
 
@@ -137,14 +146,12 @@ func (r *ProposalResponder) Reject(ctx *Context, reason string) error {
 	return r.r.Reject(ctx.ctx, reason)
 }
 
-// Used as upper (exclusive) limit when generating a random uint256. Equals 2^256.
-var limitUint256 = new(big.Int).Lsh(big.NewInt(1), 256)
-
-// nonce generates a cryptographically secure random value in the range [0, 2^256)
-func nonce() *big.Int {
-	val, err := rand.Int(rand.Reader, limitUint256)
-	if err != nil {
-		log.Panic("Could not create nonce")
+func checkProp(prop client.LedgerChannelProposal) error {
+	switch {
+	case len(prop.InitBals.Assets) != 1:
+		return errors.New("only single-asset channels are supported")
+	case !channel.IsNoApp(prop.App):
+		return errors.New("only payment channels are supported")
 	}
-	return val
+	return nil
 }

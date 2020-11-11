@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 
 	ethchannel "perun.network/go-perun/backend/ethereum/channel"
 	ethwallet "perun.network/go-perun/backend/ethereum/wallet"
+	"perun.network/go-perun/backend/ethereum/wallet/keystore"
 	"perun.network/go-perun/channel/persistence/keyvalue"
 	"perun.network/go-perun/client"
 	"perun.network/go-perun/log"
@@ -37,7 +39,7 @@ type (
 		client    *client.Client
 		persister *keyvalue.PersistRestorer
 
-		wallet  *ethwallet.Wallet
+		wallet  *keystore.Wallet
 		onChain wallet.Account
 
 		dialer *simple.Dialer
@@ -78,14 +80,18 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "finding account")
 	}
-	cb := ethchannel.NewContractBackend(ethClient, w.w.Ks, &acc.Account)
-	if err := setupContracts(ctx.ctx, cb, cfg); err != nil {
+	cb := ethchannel.NewContractBackend(ethClient, keystore.NewTransactor(*w.w))
+	if err := setupContracts(ctx.ctx, cb, acc.Account, cfg); err != nil {
 		return nil, errors.WithMessage(err, "setting up contracts")
 	}
 
 	bus := net.NewBus(acc, dialer)
-	adjudicator := ethchannel.NewAdjudicator(cb, common.Address(cfg.Adjudicator.addr), acc.Account.Address)
-	funder := ethchannel.NewETHFunder(cb, common.Address(cfg.AssetHolder.addr))
+	adjudicator := ethchannel.NewAdjudicator(cb, common.Address(cfg.Adjudicator.addr), acc.Account.Address, acc.Account)
+	accs := map[ethchannel.Asset]accounts.Account{cfg.AssetHolder.addr: acc.Account}
+	depositor := new(ethchannel.ETHDepositor)
+	deps := map[ethchannel.Asset]ethchannel.Depositor{cfg.AssetHolder.addr: depositor}
+
+	funder := ethchannel.NewFunder(cb, accs, deps)
 	c, err := client.New(acc.Address(), bus, funder, adjudicator, w.w)
 	if err != nil {
 		return nil, errors.WithMessage(err, "creating client")
@@ -178,16 +184,16 @@ func (c *Client) AddPeer(perunID *Address, host string, port int) {
 // setupContracts checks which contracts of the `cfg` are nil and deploys them
 // to the blockchain. Writes the addresses of the deployed contracts back to
 // the `cfg` struct.
-func setupContracts(ctx context.Context, cb ethchannel.ContractBackend, cfg *Config) error {
+func setupContracts(ctx context.Context, cb ethchannel.ContractBackend, deployer accounts.Account, cfg *Config) error {
 	if cfg.Adjudicator == nil {
-		adjudicator, err := ethchannel.DeployAdjudicator(ctx, cb)
+		adjudicator, err := ethchannel.DeployAdjudicator(ctx, cb, deployer)
 		if err != nil {
 			return errors.WithMessage(err, "deploying adjudicator")
 		}
 		cfg.Adjudicator = &Address{ethwallet.Address(adjudicator)}
 	}
 	if cfg.AssetHolder == nil {
-		assetHolder, err := ethchannel.DeployETHAssetholder(ctx, cb, common.Address(cfg.Adjudicator.addr))
+		assetHolder, err := ethchannel.DeployETHAssetholder(ctx, cb, common.Address(cfg.Adjudicator.addr), deployer)
 		if err != nil {
 			return errors.WithMessage(err, "deploying eth assetHolder")
 		}

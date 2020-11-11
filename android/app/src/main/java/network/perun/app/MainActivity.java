@@ -151,7 +151,7 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
         Context ctx = Prnm.contextWithTimeout(600);
         try {
             BigInts bals = proposal.getInitBals();
-            Log.i("prnm", String.format("Channel proposal (id=%s, bals=[%d,%d])", proposal.getPeerPerunID().toHex(), bals.get(0).toInt64(), bals.get(1).toInt64()));
+            Log.i("prnm", String.format("Channel proposal (id=%s, bals=[%d,%d])", proposal.getPeer().toHex(), bals.get(0).toInt64(), bals.get(1).toInt64()));
             byte[] id = responder.accept(ctx).getParams().getID();
             // Retrive the channel from chs which was inserted by accept.
             PaymentChannel ch = chs.get(ByteBuffer.wrap(id));

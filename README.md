@@ -1,6 +1,6 @@
 # Perun mobile bindings
 This project provides Android bindings for [go-perun](https://github.com/perun-network/go-perun) called *prnm*.  
-Right now it only provides two-party-payment channels.  
+Right now, it supports two-party single-asset ledger payment channels.  
 
 ## Security Disclaimer
 The authors take no responsibility for any loss of digital assets or other damage caused by the use of this software.  
