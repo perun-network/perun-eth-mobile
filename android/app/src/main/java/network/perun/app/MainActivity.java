@@ -59,9 +59,9 @@ public class MainActivity extends Activity {
             // EnablePersistence attempts to load the database from the given path or creates
             // a new one. It then retrives all channels from the database.
             node.enablePersistence(dbPath);
-            // Reconnect tries to reetablish connections to all previously connected peers.
+            // Restore tries to reetablish connections to all previously connected peers.
             // It needs to be called only once, but all peers need to be added beforehand.
-            node.reconnect();
+            node.restore();
 
             // (Optional) Propose a channel to bob:
             // (Without the following lines, the node will still accept incoming channel proposals.)
@@ -84,9 +84,9 @@ public class MainActivity extends Activity {
 }
 
 class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.UpdateHandler {
-    Client client;
+    public Client client;
     // Since java uses _pointer comparison_ for byte[] keys in a map, we need to wrap it in ByteBuffer.
-    Map<ByteBuffer, PaymentChannel> chs = new ConcurrentHashMap<ByteBuffer, PaymentChannel>();
+    public Map<ByteBuffer, PaymentChannel> chs = new ConcurrentHashMap<ByteBuffer, PaymentChannel>();
 
     public Node(Config cfg, Wallet wallet) throws Exception {
         // Possibly has to deploy contracts, so give it some extra time.
@@ -104,10 +104,10 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
         }).start();
     }
 
-    public void reconnect() throws Exception {
+    public void restore() throws Exception {
         Context ctx = Prnm.contextWithTimeout(20);
         try {
-            client.reconnect(ctx);
+            client.restore(ctx);
         } finally {
             ctx.cancel();
         }
@@ -130,16 +130,17 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
         client.addPeer(peer, ip, port);
     }
 
-    public void propose(Address peer, BigInts initBals) throws Exception {
+    public byte[] propose(Address peer, BigInts initBals) throws Exception {
         // Has to send transactions, so give it some extra time.
         Context ctx = Prnm.contextWithTimeout(600);
         try {
             byte[] id = client.proposeChannel(ctx, peer, 60, initBals).getParams().getID();
-            // Retrive the channel from chs which was inserted by accept.
+            // Retrieve the channel from chs which was inserted by accept.
             PaymentChannel ch = chs.get(ByteBuffer.wrap(id));
             if (ch == null)
                 throw new Exception(String.format("propose: channel not found id=%s", new BigInteger(1, id).toString(16)));
             Log.i("prnm", "Proposal to peer " + peer.toHex() + " successful, id: " + ch.getParams().getID());
+            return id;
         } finally {
             ctx.cancel();
         }
