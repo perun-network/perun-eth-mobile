@@ -111,7 +111,7 @@ func (h *proposalHandler) HandleProposal(_prop client.ChannelProposal, _resp *cl
 	// of. In this case, at least the Nonce should be part of the ChannelProposal
 	// struct, as is the case for the client.ChannelProposal.
 	prop := &ChannelProposal{
-		Peer:              &Address{*(ledgerProp.Participant).(*ethwallet.Address)},
+		Peer:              &Address{*(ledgerProp.Peers[0]).(*ethwallet.Address)},
 		ChallengeDuration: int64(ledgerProp.ChallengeDuration),
 		InitBals:          &BigInts{ledgerProp.InitBals.Balances[0]},
 	}
