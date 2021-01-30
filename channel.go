@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Chair of Applied Cryptography, Technische Universität
+// Copyright (c) 2021 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
 // perun-eth-mobile. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
@@ -70,23 +70,46 @@ func (p *Params) GetParts() *Addresses {
 	return &Addresses{values: addrs}
 }
 
-// PaymentChannel is a convenience wrapper for go-perun/client.Channel
-// which provides all necessary functionality of a two-party payment channel.
-// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel
-type PaymentChannel struct {
-	ch *client.Channel
+type (
+	// PaymentChannel is a convenience wrapper for go-perun/client.Channel
+	// which provides all necessary functionality of a two-party payment channel.
+	// ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel
+	PaymentChannel struct {
+		ch *client.Channel
+	}
+
+	// ConcludedEventHandler handles channel conclusions.
+	ConcludedEventHandler interface {
+		HandleConcluded(id []byte)
+	}
+
+	// ConcludedWatcher implements the AdjudicatorEventHandler and notifies the
+	// ConcludedEventHandler if an channel is concluded.
+	ConcludedWatcher struct {
+		h ConcludedEventHandler
+	}
+)
+
+// HandleAdjudicatorEvent handles channel events emitted by the Adjudicator.
+func (w *ConcludedWatcher) HandleAdjudicatorEvent(e channel.AdjudicatorEvent) {
+	if _, ok := e.(*channel.ConcludedEvent); ok {
+		id := e.ID()
+		w.h.HandleConcluded(id[:])
+	}
 }
 
 // Watch starts the channel watcher routine. It subscribes to RegisteredEvents
 // on the adjudicator. If an event is registered, it is handled by making sure
 // the latest state is registered and then all funds withdrawn to the receiver
 // specified in the adjudicator that was passed to the channel.
+// In case of a channel conclusion event, the given handler `h` is called.
 //
 // If handling failed, the watcher routine returns the respective error. It is
 // the user's job to restart the watcher after the cause of the error got fixed.
 // ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel.Watch
-func (c *PaymentChannel) Watch() error {
-	return c.ch.Watch()
+func (c *PaymentChannel) Watch(h ConcludedEventHandler) error {
+	w := &ConcludedWatcher{h: h}
+	return c.ch.Watch(w)
 }
 
 // Send pays `amount` to the counterparty. Only positive amounts are supported.
@@ -124,9 +147,14 @@ func (c *PaymentChannel) Finalize(ctx *Context) error {
 // channel has been successfully withdrawn.
 // Call Finalize before settling a channel to avoid waiting a full
 // challenge duration.
+// If the `secondary` flag is set to true, the Adjudicator runs an optimized
+// protocol, where it is assumed that the other peer also settles the channel.
 // ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel.Settle
-func (c *PaymentChannel) Settle(ctx *Context) error {
-	return c.ch.Settle(ctx.ctx)
+func (c *PaymentChannel) Settle(ctx *Context, secondary bool) error {
+	if err := c.ch.Register(ctx.ctx); err != nil {
+		return errors.WithMessage(err, "registering")
+	}
+	return c.ch.Settle(ctx.ctx, secondary)
 }
 
 // GetState returns the current state. Do not modify it.

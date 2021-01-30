@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
             Address onChain = wallet.importAccount(sk);
             Log.i("prnm", "Address: " +onChain.toHex());
             // 10.0.2.2 is the IP of the host PC when using Android Simulator and the host is running a ganache-cli.
-            // 8545 is the standart port of ganache-cli.
+            // 8545 is the standard port of ganache-cli.
             String ethUrl = "ws://10.0.2.2:8545";
 
             // Using null as either Adjudicator or AssetHolder tells the Client to deploy the contracts,
@@ -57,9 +57,9 @@ public class MainActivity extends Activity {
             // (Optional) Enable the persistence and reconnect to peers:
             //
             // EnablePersistence attempts to load the database from the given path or creates
-            // a new one. It then retrives all channels from the database.
+            // a new one. It then retrieves all channels from the database.
             node.enablePersistence(dbPath);
-            // Restore tries to reetablish connections to all previously connected peers.
+            // Restore tries to reestablish connections to all previously connected peers.
             // It needs to be called only once, but all peers need to be added beforehand.
             node.restore();
 
@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
     }
 }
 
-class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.UpdateHandler {
+class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.UpdateHandler, prnm.ConcludedEventHandler {
     public Client client;
     // Since java uses _pointer comparison_ for byte[] keys in a map, we need to wrap it in ByteBuffer.
     public Map<ByteBuffer, PaymentChannel> chs = new ConcurrentHashMap<ByteBuffer, PaymentChannel>();
@@ -154,7 +154,7 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
             BigInts bals = proposal.getInitBals();
             Log.i("prnm", String.format("Channel proposal (id=%s, bals=[%d,%d])", proposal.getPeer().toHex(), bals.get(0).toInt64(), bals.get(1).toInt64()));
             byte[] id = responder.accept(ctx).getParams().getID();
-            // Retrive the channel from chs which was inserted by accept.
+            // Retrieve the channel from chs which was inserted by accept.
             PaymentChannel ch = chs.get(ByteBuffer.wrap(id));
             if (ch == null)
                 throw new Exception(String.format("accept: channel not found id=%s", new BigInteger(1, id).toString(16)));
@@ -171,7 +171,7 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
     public void onNew(PaymentChannel channel) {
         byte[] id = channel.getParams().getID();
         if (chs.containsKey(ByteBuffer.wrap(id))) {
-            Log.w("prnm", "Overriding Channel " + id);
+            Log.w("prnm", "Overriding Channel " + new BigInteger(1, id).toString(16));
         } else {
             Log.i("prnm", "New channel " + new BigInteger(1, id).toString(16));
         }
@@ -181,7 +181,7 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
         new Thread(() -> {
             try {
                 Log.d("channel", "Starting watching");
-                channel.watch();
+                channel.watch(this);
                 Log.d("channel", "Stopped watching");
             }  catch (Exception e) {
                 Log.e("channel", "Error watching:" + e.toString());
@@ -198,7 +198,29 @@ class Node implements prnm.NewChannelCallback, prnm.ProposalHandler, prnm.Update
             Log.i("channel", String.format("Update (version=%d, isFinal=%b)", state.getVersion(), state.isFinal()));
             responder.accept(ctx);
             BigInts bals = update.getState().getBalances();
-            Log.d("channel", String.format("Acceped update (version=%d, bals=[%s, %s])", state.getVersion(), bals.get(update.getActorIdx()).toString(), bals.get(1-update.getActorIdx()).toString()));
+            Log.d("channel", String.format("Accepted update (version=%d, bals=[%s, %s])", state.getVersion(), bals.get(update.getActorIdx()).toString(), bals.get(1-update.getActorIdx()).toString()));
+        } catch (Exception e) {
+            Log.e("channel", e.toString());
+        } finally {
+            ctx.cancel();
+        }
+    }
+
+    // Handles all channel conclusion events on the Adjudicator.
+    @Override
+    public void handleConcluded(byte[] id) {
+        Log.i("channel", "Received concluded event for channel " + new BigInteger(1, id).toString(16));
+        Context ctx = Prnm.contextWithTimeout(30);
+        try {
+            PaymentChannel ch = chs.get(ByteBuffer.wrap(id));
+            if (ch == null) {
+                // If we initiated the channel closing, then the channel should
+                // already be removed and we return.
+                return;
+            }
+            ch.settle(ctx, true);
+            chs.remove(ByteBuffer.wrap(id));
+            Log.i("channel", "Settled channel " + new BigInteger(1, id).toString(16));
         } catch (Exception e) {
             Log.e("channel", e.toString());
         } finally {
