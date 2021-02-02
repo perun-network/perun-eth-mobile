@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Chair of Applied Cryptography, Technische Universität
+// Copyright (c) 2021 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
 // perun-eth-mobile. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
@@ -8,10 +8,12 @@ package prnm
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 
@@ -80,7 +82,9 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "finding account")
 	}
-	cb := ethchannel.NewContractBackend(ethClient, keystore.NewTransactor(*w.w))
+
+	signer := types.NewEIP155Signer(big.NewInt(1337))
+	cb := ethchannel.NewContractBackend(ethClient, keystore.NewTransactor(*w.w, signer))
 	if err := setupContracts(ctx.ctx, cb, acc.Account, cfg); err != nil {
 		return nil, errors.WithMessage(err, "setting up contracts")
 	}
