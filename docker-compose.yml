@@ -1,0 +1,68 @@
+version: "3.0"
+services:
+  ganache:
+    image: "trufflesuite/ganache-cli"
+    command: --host 0.0.0.0 --account="0x7d51a817ee07c3f28581c47a5072142193337fdca4d7911e58c5af2d03895d1a,1000000000000000000000" --account="0x6aeeb7f09e757baa9d3935a042c3d0d46a2eda19e9b676283dce4eaf32e29dc9,1000000000000000000000" -b 1 -g 2000000000
+    networks:
+      vpcbr:
+        ipv4_address: 10.5.0.9
+    ports:
+      - 8545
+    logging:
+      driver: none
+
+  alice:
+    image: budtmo/docker-android-x86-10.0
+    privileged: true
+    networks:
+      vpcbr:
+        ipv4_address: 10.5.0.10
+    expose:
+      - 5750
+      - 5555
+    environment:
+      - DEVICE=Nexus S
+    logging:
+      driver: none
+
+  bob:
+    image: budtmo/docker-android-x86-10.0
+    privileged: true
+    networks:
+      vpcbr:
+        ipv4_address: 10.5.0.11
+    ports:
+      - "6080:6080"
+    expose:
+      - 5750
+      - 5555
+    environment:
+      - DEVICE=Nexus S
+    logging:
+      driver: none
+
+  tester:
+    image: perunnetwork/prnm-ci
+    command: |
+      bash .scripts/docker-test.sh
+    ulimits:
+      memlock: 67108864
+    networks:
+      vpcbr:
+        ipv4_address: 10.5.0.6
+    expose:
+      - 5750
+      - 5753
+    volumes:
+      - .:/src
+    depends_on:
+      - alice
+      - bob
+      - ganache
+
+networks:
+  vpcbr:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 10.5.0.0/16
