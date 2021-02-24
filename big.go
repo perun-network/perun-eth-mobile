@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Chair of Applied Cryptography, Technische Universität
+// Copyright (c) 2021 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
 // perun-eth-mobile. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
@@ -60,9 +60,19 @@ func (b *BigInt) Sub(x *BigInt) *BigInt {
 	return &BigInt{new(big.Int).Sub(b.i, x.i)}
 }
 
+// IsWithin returns whether the receiver deviates at most `delta` from `x`.
+func (b *BigInt) IsWithin(x *BigInt, delta *BigInt) bool {
+	return new(big.Int).Sub(b.i, x.i).CmpAbs(delta.i) <= 0
+}
+
 // ToInt64 wraps math/big.Int.Int64
 func (b *BigInt) ToInt64() int64 {
 	return b.i.Int64()
+}
+
+// Cmp wraps math/big.Int.Cmp
+func (b *BigInt) Cmp(x *BigInt) int {
+	return b.i.Cmp(x.i)
 }
 
 // String wraps math/big.Int.String
