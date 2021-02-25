@@ -9,12 +9,20 @@ repositories {
 android {
     compileSdkVersion 29
 
+    // Fixes: "More than one file was found with OS independent path 'META-INF/LICENSE.md'."
+    packagingOptions {
+        exclude 'META-INF/LICENSE.md'
+        exclude 'META-INF/LICENSE-notice.md'
+    }
+
     defaultConfig {
         applicationId "network.perun.app"
         minSdkVersion 15
         targetSdkVersion 29
         versionCode 1
         versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
@@ -26,9 +34,64 @@ android {
         sourceCompatibility = 1.8
     }
     buildToolsVersion = '29.0.3'
+
+    // Testing. Taken from https://developer.android.com/training/testing/set-up-project .
+    // Gradle automatically adds 'android.test.runner' as a dependency.
+    useLibrary 'android.test.runner'
+
+    useLibrary 'android.test.base'
+    useLibrary 'android.test.mock'
+}
+
+// Needed for Google test.
+repositories {
+    mavenCentral()
+    allprojects {
+        repositories {
+            jcenter()
+            google()
+        }
+    }
 }
 
 dependencies {
     implementation 'com.android.support:appcompat-v7:22.1.1'
     implementation (name:'prnm', ext:'aar')
+
+    // Testing. Taken from https://developer.android.com/training/testing/set-up-project .
+    androidTestImplementation 'junit:junit:4.12'
+    androidTestImplementation "com.google.truth:truth:1.0.1"
+    androidTestImplementation (name:'prnm', ext:'aar')
+
+    // Android test.
+    androidTestImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
+    androidTestRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.3.1'
+
+    // Core library
+    androidTestImplementation 'androidx.test:core:1.0.0'
+
+    // AndroidJUnitRunner and JUnit Rules
+    androidTestImplementation 'androidx.test:runner:1.1.0'
+    androidTestImplementation 'androidx.test:rules:1.1.0'
+
+    // Assertions
+    androidTestImplementation 'androidx.test.ext:junit:1.0.0'
+    androidTestImplementation 'androidx.test.ext:truth:1.0.0'
+    androidTestImplementation 'com.google.truth:truth:0.42'
+
+    // Espresso dependencies
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.1.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-intents:3.1.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-accessibility:3.1.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-web:3.1.0'
+    androidTestImplementation 'androidx.test.espresso.idling:idling-concurrent:3.1.0'
+
+    androidTestImplementation 'org.awaitility:awaitility:3.0.0'
+
+    // The following Espresso dependency can be either "implementation"
+    // or "androidTestImplementation", depending on whether you want the
+    // dependency to appear on your APK's compile classpath or the test APK
+    // classpath.
+    androidTestImplementation 'androidx.test.espresso:espresso-idling-resource:3.1.0'
 }
