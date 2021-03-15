@@ -370,5 +370,5 @@ gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81
 honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 perun.network/go-perun v0.6.1-0.20210216151138-429a8934666d h1:/O+ROA2It9MYglDctYG3j5cu7EnU/rM2pw9i8qkaZ8o=
 perun.network/go-perun v0.6.1-0.20210216151138-429a8934666d/go.mod h1:pBUGJDd6oBGaK5sHJcY7OfZvGhgEGC/6x2Ezv72X6Z4=
-perun.network/go-perun v0.6.1-0.20210218151849-cf9279c99f73 h1:W0QzwUzYUG78beKsEinrnVIZO25R+aM0O/ODpWJgvgM=
-perun.network/go-perun v0.6.1-0.20210218151849-cf9279c99f73/go.mod h1:pBUGJDd6oBGaK5sHJcY7OfZvGhgEGC/6x2Ezv72X6Z4=
+perun.network/go-perun v0.6.1-0.20210311150330-6d9d074edfb3 h1:/odGBrBXUsq29Sub4UBrydGxKVcWcgBUOVbN99DscwU=
+perun.network/go-perun v0.6.1-0.20210311150330-6d9d074edfb3/go.mod h1:pBUGJDd6oBGaK5sHJcY7OfZvGhgEGC/6x2Ezv72X6Z4=

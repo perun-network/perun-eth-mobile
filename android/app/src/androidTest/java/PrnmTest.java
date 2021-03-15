@@ -164,7 +164,6 @@ public class PrnmTest implements prnm.NewChannelCallback, prnm.ProposalHandler, 
         BigInts initBals = Prnm.newBalances(eth(100), eth(100));
         log("Opening Channel…");
         client.proposeChannel(ctx, Setup.Addresses[1-s.Index], 60, initBals);
-        Thread.sleep(100);  // BUG in go-perun. Bob otherwise reports: 'received update for unknown channel'
         log("Channel opened.");
     }
 
