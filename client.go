@@ -25,6 +25,7 @@ import (
 	"perun.network/go-perun/log"
 	"perun.network/go-perun/pkg/sortedkv/leveldb"
 	"perun.network/go-perun/wallet"
+	"perun.network/go-perun/watcher/local"
 	"perun.network/go-perun/wire/net"
 	"perun.network/go-perun/wire/net/simple"
 )
@@ -84,19 +85,24 @@ func NewClient(ctx *Context, cfg *Config, w *Wallet) (*Client, error) {
 	}
 
 	signer := types.NewEIP155Signer(big.NewInt(1337))
-	cb := ethchannel.NewContractBackend(ethClient, keystore.NewTransactor(*w.w, signer))
+	cb := ethchannel.NewContractBackend(ethClient, keystore.NewTransactor(*w.w, signer), cfg.TxFinalityDepth)
 	if err := setupContracts(ctx.ctx, cb, acc.Account, cfg); err != nil {
 		return nil, errors.WithMessage(err, "setting up contracts")
 	}
 
 	bus := net.NewBus(acc, dialer)
 	adjudicator := ethchannel.NewAdjudicator(cb, common.Address(cfg.Adjudicator.addr), acc.Account.Address, acc.Account)
-	accs := map[ethchannel.Asset]accounts.Account{cfg.AssetHolder.addr: acc.Account}
 	depositor := new(ethchannel.ETHDepositor)
-	deps := map[ethchannel.Asset]ethchannel.Depositor{cfg.AssetHolder.addr: depositor}
 
-	funder := ethchannel.NewFunder(cb, accs, deps)
-	c, err := client.New(acc.Address(), bus, funder, adjudicator, w.w)
+	funder := ethchannel.NewFunder(cb)
+	if !funder.RegisterAsset(cfg.AssetHolder.addr, depositor, acc.Account) {
+		return nil, errors.New("Could not register asset")
+	}
+	watcher, err := local.NewWatcher(adjudicator)
+	if err != nil {
+		return nil, errors.WithMessage(err, "creating watcher")
+	}
+	c, err := client.New(acc.Address(), bus, funder, adjudicator, w.w, watcher)
 	if err != nil {
 		return nil, errors.WithMessage(err, "creating client")
 	}

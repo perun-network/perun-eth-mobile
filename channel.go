@@ -151,9 +151,6 @@ func (c *PaymentChannel) Finalize(ctx *Context) error {
 // protocol, where it is assumed that the other peer also settles the channel.
 // ref https://pkg.go.dev/perun.network/go-perun/client?tab=doc#Channel.Settle
 func (c *PaymentChannel) Settle(ctx *Context, secondary bool) error {
-	if err := c.ch.Register(ctx.ctx); err != nil {
-		return errors.WithMessage(err, "registering")
-	}
 	return c.ch.Settle(ctx.ctx, secondary)
 }
 
