@@ -51,9 +51,11 @@ public class MainActivity extends Activity {
             // Using null as either Adjudicator or AssetHolder tells the Client to deploy the contracts,
             // in this case we already deployed them and enter their addresses.
             Address adjudicator = new Address("0xDc4A7e107aD6dBDA1870df34d70B51796BBd1335");
-            Address assetholder = new Address("0xb051EAD0C6CC2f568166F8fEC4f07511B88678bA");
+            Address assetHolder = new Address("0xb051EAD0C6CC2f568166F8fEC4f07511B88678bA");
+            // Define how many blocks a transaction needs to be part of to be considered final.
+            int txFinalityDepth = 1;
             // We will be listening on 127.0.0.1:5750 for new channel proposals with the alias "Alice".
-            Config cfg = new Config("Alice", onChain, adjudicator, assetholder, ethUrl, "127.0.0.1", 5750);
+            Config cfg = new Config("Alice", onChain, adjudicator, assetHolder, ethUrl, "127.0.0.1", 5750, txFinalityDepth);
             node = new Node(cfg, wallet);
             Address bob = new Address("0xA298Fc05bccff341f340a11FffA30567a00e651f");
             // Create the initial balances of the channel, we start with 2000 and bob with 1000.

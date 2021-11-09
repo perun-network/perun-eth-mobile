@@ -146,7 +146,7 @@ public class PrnmTest implements prnm.NewChannelCallback, prnm.ProposalHandler, 
         Address onChain = wallet.importAccount(Setup.SKs[s.Index]);
 
         String ethUrl = "ws://10.5.0.9:8545";
-        Config cfg = new Config(Setup.Aliases[s.Index], onChain, s.Adjudicator, s.Assetholder, ethUrl, "0.0.0.0", 5750);
+        Config cfg = new Config(Setup.Aliases[s.Index], onChain, s.Adjudicator, s.Assetholder, ethUrl, "0.0.0.0", 5750, Setup.TxFinalityDepth);
         client = new Client(ctx, cfg, wallet);
 
         client.addPeer(Setup.Addresses[1-s.Index], Setup.Hosts[1-s.Index], Setup.Ports[1-s.Index]);
@@ -160,11 +160,10 @@ public class PrnmTest implements prnm.NewChannelCallback, prnm.ProposalHandler, 
     }
 
     public void proposeChannel(Setup s) throws Exception {
-        Thread.sleep(5000);
+        Thread.sleep(5000 + Setup.BlockTimeMs * Setup.TxFinalityDepth);
         BigInts initBals = Prnm.newBalances(eth(100), eth(100));
         log("Opening Channel…");
         client.proposeChannel(ctx, Setup.Addresses[1-s.Index], 60, initBals);
-        Thread.sleep(100);  // BUG in go-perun. Bob otherwise reports: 'received update for unknown channel'
         log("Channel opened.");
     }
 
@@ -191,11 +190,11 @@ public class PrnmTest implements prnm.NewChannelCallback, prnm.ProposalHandler, 
 
     public void sharedTeardown(Setup s) throws Exception {
         if (s.Index == 1) {
-            Thread.sleep(1000);
+            Thread.sleep(1000 + Setup.BlockTimeMs * Setup.TxFinalityDepth);
             log("Finalizing");
             ch.get().finalize(ctx);
         } else {
-            Thread.sleep(5000);
+            Thread.sleep(5000 + Setup.BlockTimeMs * Setup.TxFinalityDepth);
             log("Settling");
             ch.get().settle(ctx, false);
         }
@@ -285,6 +284,8 @@ class Setup {
     public final static String[] SKs = {"0x6aeeb7f09e757baa9d3935a042c3d0d46a2eda19e9b676283dce4eaf32e29dc9", "0x7d51a817ee07c3f28581c47a5072142193337fdca4d7911e58c5af2d03895d1a"};
     public final static String[] Hosts = {"10.5.0.6", "10.5.0.6"};
     public final static int[] Ports = {5753, 5750};
+    public final static int TxFinalityDepth = 3;
+    public final static int BlockTimeMs = 1000;
 
     public int Index; // 0 = Alice, 1 = Bob
     public Address Adjudicator, Assetholder;

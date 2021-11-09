@@ -5,7 +5,10 @@
 
 package prnm
 
-import "perun.network/go-perun/client"
+import (
+	"perun.network/go-perun/channel"
+	"perun.network/go-perun/client"
+)
 
 type (
 	// An UpdateHandler decides how to handle incoming channel update requests
@@ -26,6 +29,7 @@ type (
 	// If the ActorIdx is the own channel index, this is a payment request.
 	// If State.IsFinal() is true, this is a request to finalize the channel.
 	ChannelUpdate struct {
+		Last     *State // State before the update.
 		State    *State // Proposed new state.
 		ActorIdx int    // Who is transferring funds.
 	}
@@ -42,8 +46,9 @@ type (
 // HandleUpdate implements the client.UpdateHandler interface by converting the
 // passed types from the go-perun/client package into their local counterparts
 // and then calling the prnm.UpdateHandler.
-func (h *updateHandler) HandleUpdate(_update client.ChannelUpdate, _resp *client.UpdateResponder) {
+func (h *updateHandler) HandleUpdate(_last *channel.State, _update client.ChannelUpdate, _resp *client.UpdateResponder) {
 	update := &ChannelUpdate{
+		Last:     &State{_last},
 		State:    &State{_update.State},
 		ActorIdx: int(_update.ActorIdx),
 	}

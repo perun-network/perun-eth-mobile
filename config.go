@@ -24,18 +24,22 @@ type Config struct {
 	ETHNodeURL               string // URL of the ETH node. Example: ws://127.0.0.1:8545
 	IP                       string // Ip to listen on.
 	Port                     uint16 // Port to listen on.
+	// TxFinalityDepth how many blocks a Transaction needs to be included
+	// in to be considered final.
+	TxFinalityDepth uint64
 }
 
-// NewConfig creates a new configuration
-func NewConfig(alias string, address, adjudicator, assetHolder *Address, ETHNodeURL, ip string, port int) *Config {
+// NewConfig creates a new configuration.
+func NewConfig(alias string, address, adjudicator, assetHolder *Address, ETHNodeURL, ip string, port int, txFinalityDepth int) *Config {
 	return &Config{
-		Alias:       alias,
-		Address:     address,
-		Adjudicator: adjudicator,
-		AssetHolder: assetHolder,
-		ETHNodeURL:  ETHNodeURL,
-		IP:          ip,
-		Port:        uint16(port),
+		Alias:           alias,
+		Address:         address,
+		Adjudicator:     adjudicator,
+		AssetHolder:     assetHolder,
+		ETHNodeURL:      ETHNodeURL,
+		IP:              ip,
+		Port:            uint16(port),
+		TxFinalityDepth: uint64(txFinalityDepth),
 	}
 }
 
