@@ -6,7 +6,7 @@ Right now, it supports two-party single-asset ledger payment channels.
 The authors take no responsibility for any loss of digital assets or other damage caused by the use of this software.  
 **Do not use this software with real funds**.
 
-### Getting Started
+## Getting Started
 ```sh
 # Install gomobile, see https://godoc.org/golang.org/x/mobile/cmd/gomobile
 go get golang.org/x/mobile/cmd/gomobile
@@ -17,6 +17,9 @@ git clone https://github.com/perun-network/perun-eth-mobile
 cd perun-eth-mobile
 gomobile bind -o android/app/prnm.aar -target=android
 ```
+👉 More in-depth instructions can be found in [DEVELOPING.md](DEVELOPING.md).
+
+## Structure
 
 The `android/` folder is an Android Studio Project, the only two important files are:  
 - `android/app/src/main/java/network/perun/app/MainActivity.java` contains the Apps logic, exemplifying the use of `go-perun`.  
