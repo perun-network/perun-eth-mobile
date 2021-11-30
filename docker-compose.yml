@@ -44,7 +44,7 @@ services:
   tester:
     image: perunnetwork/prnm-ci
     command: |
-      bash .scripts/docker-test.sh
+      bash .scripts/docker-test-android.sh
     ulimits:
       memlock: 67108864
     networks:
